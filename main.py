@@ -1,3 +1,3 @@
-from classes.MainProcessor import MainProcessor
+from scenarios.MainProcessor import MainProcessor
 
 main_processor = MainProcessor()
