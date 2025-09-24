@@ -1,7 +1,7 @@
 from selenium.common import ElementClickInterceptedException, WebDriverException
 from selenium.webdriver import ActionChains
 
-from scenarios.used_scenarios.analyze_leaderboards.abstracts.leaderboard_parser import LeaderboardParser
+from scenarios.analyze_leaderboards.abstracts.leaderboard_parser import LeaderboardParser
 from selenium.webdriver.common.by import By
 from time import sleep
 

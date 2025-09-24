@@ -6,12 +6,12 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium import webdriver
-from scenarios.unused_scenarios.generate_order_book_data.constants.OrderBookGetterConstants import *
 import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+ADDRESS = "127.0.0.1:9222"
 
 class SeleniumProcessor:
     def __init__(self):
@@ -105,6 +105,19 @@ class SeleniumProcessor:
         self.driver.get(url)
         sleep(5)
         logger.info("Go to link {}".format(url))
+
+    def go_with_wait(self, url):
+        self.driver.get(url)
+        logger.info("Go to link {}".format(url))
+        WebDriverWait(self.driver, timeout=30).until(
+            lambda driver: driver.execute_script("""
+                return document.readyState === 'complete' &&
+                       typeof window.jQuery !== 'undefined' &&
+                       jQuery.active === 0 &&
+                       document.querySelectorAll('.dynamic-content').length > 0
+            """)
+        )
+        logger.info("Gan to link {}".format(url))
 
     def run(self):
         pass

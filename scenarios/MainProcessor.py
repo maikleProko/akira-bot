@@ -1,10 +1,10 @@
-from scenarios.used_scenarios.analyze_leaderboards.analyze_leaderboards import analyze_leaderboards
-from utils.decorators import doing_periodical_per_1_minute
+from scenarios.reverberate.reverberate import reverberate
 
 
 #@doing_periodical_per_1_minute
 def run():
-    analyze_leaderboards()
+    reverberate()
+    #analyze_leaderboards()
 
 
 class MainProcessor:
