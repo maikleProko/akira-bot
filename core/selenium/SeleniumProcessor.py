@@ -150,9 +150,7 @@ class SeleniumProcessor:
         logger.info("Element with xpath {} is double-clicked".format(xpath))
 
     def get_parent_element(self, element):
-        xpath = element.get_attribute('xpath')
-        parent = self.driver.find_element(By.XPATH, f"../{xpath}")
-        return parent
+        return element.find_element(By.XPATH, "..")
 
     def find_element_by_text(self, parent_element, text):
         try:
@@ -177,6 +175,12 @@ class SeleniumProcessor:
         wait.until(EC.presence_of_element_located((By.XPATH, xpath)))
         element = self.driver.find_element(By.XPATH, xpath)
         return element
+
+    def get_element_in_element_using_text(self, element, text):
+        xpath = f"//*[contains(text(), '{text}')]"
+        wait = WebDriverWait(self.driver, 600)
+        wait.until(EC.presence_of_element_located((By.XPATH, xpath)))
+        return element.find_element(By.XPATH, xpath)
 
     def get_element_using_near_text(self, text, css_selector):
         text_element = self.get_element_using_text(text)
