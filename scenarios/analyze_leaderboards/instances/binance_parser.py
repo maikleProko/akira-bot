@@ -7,7 +7,27 @@ from selenium.common import ElementClickInterceptedException, WebDriverException
 from selenium.webdriver import ActionChains
 from selenium.webdriver.common.by import By
 from datetime import datetime
+import re
+from decimal import Decimal
 
+
+def extract_number(s, as_decimal=False):
+    if s is None:
+        raise ValueError("input is None")
+    # нормализуем некоторые символы минуса
+    s = s.strip().replace('−', '-')
+    # учитываем запись в скобках как отрицательное значение: "(480.99)" -> -480.99
+    negative_by_parens = bool(re.search(r'\(\s*[-+]?\d', s))
+    # найдём первое вхождение числа: опциональный знак, цифра, группы цифр (с запятыми/пробелами), дробная часть
+    m = re.search(r'[-+]?\d[\d\s,]*\.?\d*', s)
+    if not m:
+        raise ValueError("No numeric value found in input")
+    num = m.group(0)
+    # удалить пробелы и разделители тысяч
+    num = num.replace(' ', '').replace(',', '')
+    if negative_by_parens and not num.startswith('-'):
+        num = '-' + num
+    return Decimal(num) if as_decimal else float(Decimal(num))
 
 from scenarios.analyze_leaderboards.abstracts.leaderboard_parser import LeaderboardParser
 
@@ -18,6 +38,7 @@ A_TRADER_ELEMENT = 'bn-balink'
 PAGES_ELEMENT = 'bn-pagination-items'
 TRADES_XPATH = '/html/body/div[3]/div[2]/div/div[4]/div[2]/div[2]/div[2]/div/div[1]/div/div/div[2]/table/tbody'
 TRADE_CARD_CLASS = 'bn-web-table-row'
+TRADER_WINRATE_XPATH = '/html/body/div[3]/div[2]/div/div[3]/div[2]/div[1]/div/div[6]/div[2]'
 
 logger = logging.getLogger(__name__)
 
@@ -69,12 +90,12 @@ class BinanceParser(LeaderboardParser):
         self.click_history()
         pages_element = self._element(By.CLASS_NAME, PAGES_ELEMENT)
         pages = pages_element.find_elements(By.CLASS_NAME, 'bn-pagination-item')
-        print(pages)
-        print(len(pages))
         last_page = int(pages[-1].text)
+        self.traders[index]['winrate'] = extract_number(self.get_element(By.XPATH, TRADER_WINRATE_XPATH).text) * 0.01
         logger.info("Trades pages count: %d", last_page)
         for p in range(1, last_page):
             self.get_trades_from_page(index, p)
+
 
 
     def get_trades_from_page(self, trader_index, page):
@@ -90,26 +111,46 @@ class BinanceParser(LeaderboardParser):
     def get_trades_for_trader(self, index: int) -> None:
         table = self._element(By.XPATH, TRADES_XPATH)
         rows = table.find_elements(By.CLASS_NAME, TRADE_CARD_CLASS)
-        parsed = [self._parse_trade_row(r) for r in rows]
-        print(parsed)
+        parsed = []
+
+        for row in rows:
+            try:
+                parsed.append(self._parse_trade_row(row))
+            except Exception as e:
+                print('error for parse trade: ' + str(e))
+
         self.traders[index].setdefault(self.per_trader_list_key, []).extend(parsed)
+        print(self.traders)
         self._save_traders()
 
     # ----- small helpers -----
-    def get_value_of_param(self, param_name, row):
+
+    def get_value_of_trader_param(self, param_name, row):
         param_name_element = self.get_element_in_element_using_text(row, param_name)
-        print(param_name_element.text)
         parent = self.get_parent_element(param_name_element)
-        return parent.find_element(By.XPATH, "//*[@class='t-caption2 text-PrimaryText']").text
+        return parent.find_element(By.XPATH, ".//*[@class='t-subtitle2']").text
+
+    def get_value_of_trade_param(self, param_name, row):
+        param_name_element = self.get_element_in_element_using_text(row, param_name)
+        parent = self.get_parent_element(param_name_element)
+        return parent.find_element(By.XPATH, ".//*[@class='t-caption2 text-PrimaryText']").text
+
+    def get_datetime_value_of_param(self, param_name, row):
+        value = self.get_value_of_trade_param(param_name, row)
+        return datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+
 
     def get_trade_params(self, row):
         return self.get_parent_element(self.get_parent_element(self.get_element_in_element_using_text(row, 'Открыто')))
 
     def _parse_trade_row(self, row) -> Dict[str, Any]:
         return {
-            'open-date': datetime.strptime(self.get_value_of_param('Открыто', row), "%Y-%m-%d %H:%M:%S"),
-            'close-date': datetime.strptime(self.get_value_of_param('Закрыто', row), "%Y-%m-%d %H:%M:%S"),
-            'type': row.find_elements(By.CLASS_NAME, 'bn-bubble-content')[1].text
+            'open_date': self.get_datetime_value_of_param('Открыто', row),
+            'close_date': self.get_datetime_value_of_param('Закрыто', row),
+            'symbol': row.find_elements(By.CLASS_NAME, 't-subtitle1')[0].text,
+            'type': row.find_elements(By.CLASS_NAME, 'bn-bubble-content')[1].text,
+            'pnl': extract_number(self.get_value_of_trade_param('PnL после закрытия позиций', row)),
+            'is_profit': extract_number(self.get_value_of_trade_param('PnL после закрытия позиций', row)) >= 0
         }
 
     def _load_traders(self) -> None:

@@ -177,7 +177,7 @@ class SeleniumProcessor:
         return element
 
     def get_element_in_element_using_text(self, element, text):
-        xpath = f"//*[contains(text(), '{text}')]"
+        xpath = f".//*[contains(text(), '{text}')]"
         wait = WebDriverWait(self.driver, 600)
         wait.until(EC.presence_of_element_located((By.XPATH, xpath)))
         return element.find_element(By.XPATH, xpath)

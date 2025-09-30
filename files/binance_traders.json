@@ -1,121 +1,147 @@
 [
     {
         "url": "https://www.binance.com/ru/copy-trading/lead-details/4672719384371372801?timeRange=30D&isSmartFilter=true",
-        "trades": [
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {},
-            {
-                "open-date": "2025-09-24 08:46:56",
-                "close-date": "2025-09-24 08:46:56",
-                "type": "Бесср"
-            },
-            {
-                "open-date": "2025-09-24 08:46:56",
-                "close-date": "2025-09-24 08:46:56",
-                "type": "Бесср"
-            },
-            {
-                "open-date": "2025-09-24 08:46:56",
-                "close-date": "2025-09-24 08:46:56",
-                "type": "Бесср"
-            },
-            {
-                "open-date": "2025-09-24 08:46:56",
-                "close-date": "2025-09-24 08:46:56",
-                "type": "Бесср"
-            },
-            {
-                "open-date": "2025-09-24 08:46:56",
-                "close-date": "2025-09-24 08:46:56",
-                "type": "Бесср"
-            },
-            {
-                "open-date": "2025-09-24 08:46:56",
-                "close-date": "2025-09-24 08:46:56",
-                "type": "Бесср"
-            },
-            {
-                "open-date": "2025-09-24 08:46:56",
-                "close-date": "2025-09-24 08:46:56",
-                "type": "Бесср"
-            },
-            {
-                "open-date": "2025-09-24 08:46:56",
-                "close-date": "2025-09-24 08:46:56",
-                "type": "Бесср"
-            },
-            {
-                "open-date": "2025-09-24 08:46:56",
-                "close-date": "2025-09-24 08:46:56",
-                "type": "Бесср"
-            },
-            {
-                "open-date": "2025-09-24 08:46:56",
-                "close-date": "2025-09-24 08:46:56",
-                "type": "Бесср"
-            },
-            {
-                "open-date": "2025-09-24 08:46:56",
-                "close-date": "2025-09-24 08:46:56",
-                "type": "Изолированная\nШорт"
-            },
-            {
-                "open-date": "2025-09-24 08:46:56",
-                "close-date": "2025-09-24 08:46:56",
-                "type": "Изолированная\nЛонг"
-            },
-            {
-                "open-date": "2025-09-24 08:46:56",
-                "close-date": "2025-09-24 08:46:56",
-                "type": "Изолированная\nЛонг"
-            },
-            {
-                "open-date": "2025-09-24 08:46:56",
-                "close-date": "2025-09-24 08:46:56",
-                "type": "Изолированная\nШорт"
-            },
-            {
-                "open-date": "2025-09-24 08:46:56",
-                "close-date": "2025-09-24 08:46:56",
-                "type": "Изолированная\nШорт"
-            },
-            {
-                "open-date": "2025-09-24 08:46:56",
-                "close-date": "2025-09-24 08:46:56",
-                "type": "Изолированная\nЛонг"
-            },
-            {
-                "open-date": "2025-09-24 08:46:56",
-                "close-date": "2025-09-24 08:46:56",
-                "type": "Изолированная\nШорт"
-            },
-            {
-                "open-date": "2025-09-24 08:46:56",
-                "close-date": "2025-09-24 08:46:56",
-                "type": "Изолированная\nЛонг"
-            },
-            {
-                "open-date": "2025-09-24 08:46:56",
-                "close-date": "2025-09-24 08:46:56",
-                "type": "Кросс\nШорт"
-            },
-            {
-                "open-date": "2025-09-24 08:46:56",
-                "close-date": "2025-09-24 08:46:56",
-                "type": "Изолированная\nЛонг"
-            }
-        ]
+        "trades": [],
+        "winrate": 0.8462000000000001
     },
     {
-        "url": "https://www.binance.com/ru/copy-trading/lead-details/4701507683156406784?timeRange=30D&isSmartFilter=true",
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4555210807627654913?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4697211442635747073?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4683599164603300609?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4635232766888150272?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4595446298064098049?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4693652925177553153?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4368289204618097664?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4114199478052360448?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4167872928340901889?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4666764252106574081?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4659599616710989056?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4650910266912061185?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/3866185209767867392?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/3780859094796325377?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4505733544990608128?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4688240849007272448?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4326059289542684929?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4577182751118905344?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4612765056578576641?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4608816952887382273?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4673478243166266624?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4637908594154328832?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4622100327275327233?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4654409550663997185?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4691248153197196544?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4395375800392267008?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4700942443477090304?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4648997503428779776?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/3976272489709966337?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4182088558978593025?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/3943749751886504961?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4295654884114226688?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4379924033568008193?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4369858484193307137?timeRange=30D&isSmartFilter=true",
+        "trades": []
+    },
+    {
+        "url": "https://www.binance.com/ru/copy-trading/lead-details/4336907836149331713?timeRange=30D&isSmartFilter=true",
         "trades": []
     }
 ]
