@@ -7,4 +7,3 @@ def analyze_leaderboards():
     binance_parser = BinancePassiveParser()
     leaderboard_analyzer = LeaderboardAnalyzer(binance_parser.traders)
     print(leaderboard_analyzer.process())
-    print(leaderboard_analyzer)

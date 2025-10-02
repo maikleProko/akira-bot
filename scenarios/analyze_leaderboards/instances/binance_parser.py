@@ -84,11 +84,15 @@ class BinanceParser(LeaderboardParser):
         self._load_traders()
         i = 0
         while i < len(self.traders):
-            keep = self.parse_trader(self.traders[i], i)
-            if not keep:
-                # удаляем текущего трейдера и НЕ увеличиваем i (следующий элемент смещается на текущую позицию)
-                self.traders.pop(i)
-            else:
+            try:
+                keep = self.parse_trader(self.traders[i], i)
+                if not keep:
+                    # удаляем текущего трейдера и НЕ увеличиваем i (следующий элемент смещается на текущую позицию)
+                    self.traders.pop(i)
+                else:
+                    i += 1
+            except Exception as e:
+                print('error for parse trader ' + str(i) + ', continue: ' + str(e))
                 i += 1
 
     def parse_trader(self, trader: Dict[str, Any], index: int) -> bool:
