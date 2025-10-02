@@ -82,20 +82,34 @@ class BinanceParser(LeaderboardParser):
     # ----- trades parsing -----
     def parse_all_trades(self) -> None:
         self._load_traders()
-        for i, trader in enumerate(self.traders):
-            self.parse_trader(trader, i)
+        i = 0
+        while i < len(self.traders):
+            keep = self.parse_trader(self.traders[i], i)
+            if not keep:
+                # удаляем текущего трейдера и НЕ увеличиваем i (следующий элемент смещается на текущую позицию)
+                self.traders.pop(i)
+            else:
+                i += 1
 
-    def parse_trader(self, trader: Dict[str, Any], index: int) -> None:
+    def parse_trader(self, trader: Dict[str, Any], index: int) -> bool:
         self.go(trader['url'])
         self.click_history()
         pages_element = self._element(By.CLASS_NAME, PAGES_ELEMENT)
         pages = pages_element.find_elements(By.CLASS_NAME, 'bn-pagination-item')
         last_page = int(pages[-1].text)
-        self.traders[index]['winrate'] = extract_number(self.get_element(By.XPATH, TRADER_WINRATE_XPATH).text) * 0.01
-        logger.info("Trades pages count: %d", last_page)
-        for p in range(1, last_page):
-            self.get_trades_from_page(index, p)
+        winrate = extract_number(self.get_element(By.XPATH, TRADER_WINRATE_XPATH).text) * 0.01
 
+        if winrate < 0.8:
+            print(f'trader {index} removed (winrate {winrate})')
+            return False  # сигнализируем удаление
+        # иначе сохраняем и парсим
+        self.traders[index]['winrate'] = winrate
+        if last_page > 12:
+            last_page = 12
+        for p in range(1, last_page + 1):
+            self.get_trades_from_page(index, p)
+        print(f'trader {index} parsed')
+        return True
 
 
     def get_trades_from_page(self, trader_index, page):
@@ -120,7 +134,7 @@ class BinanceParser(LeaderboardParser):
                 print('error for parse trade: ' + str(e))
 
         self.traders[index].setdefault(self.per_trader_list_key, []).extend(parsed)
-        print(self.traders)
+        print('trades of page ' + str(index) + ' parsed')
         self._save_traders()
 
     # ----- small helpers -----
@@ -133,47 +147,48 @@ class BinanceParser(LeaderboardParser):
     def get_value_of_trade_param(self, param_name, row):
         param_name_element = self.get_element_in_element_using_text(row, param_name)
         parent = self.get_parent_element(param_name_element)
-        return parent.find_element(By.XPATH, ".//*[@class='t-caption2 text-PrimaryText']").text
+        return parent.find_element(By.XPATH,".//*[contains(concat('t-caption2 ', normalize-space(@class), ' '), ' text-PrimaryText ')]").text
 
     def get_datetime_value_of_param(self, param_name, row):
         value = self.get_value_of_trade_param(param_name, row)
+        if value == '--':
+            return datetime.now()
         return datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
 
 
     def get_trade_params(self, row):
         return self.get_parent_element(self.get_parent_element(self.get_element_in_element_using_text(row, 'Открыто')))
 
+    def get_type(self, row):
+        text = row.find_elements(By.CLASS_NAME, 'bn-bubble-content')[1].text
+
+        if text == "Изолированная\nШорт":
+            text = 'isolated_short'
+
+        if text == "Изолированная\nЛонг":
+            text = 'isolated_long'
+
+        if text == "Кросс\nШорт":
+            text = 'cross_short'
+
+        if text == "Кросс\nЛонг":
+            text = 'cross_long'
+
+        return text
+
+
+
     def _parse_trade_row(self, row) -> Dict[str, Any]:
+        trade_params = self.get_trade_params(row)
         return {
-            'open_date': self.get_datetime_value_of_param('Открыто', row),
-            'close_date': self.get_datetime_value_of_param('Закрыто', row),
+            'open_date': self.get_datetime_value_of_param('Открыто', trade_params),
+            'close_date': self.get_datetime_value_of_param('Закрыто', trade_params),
             'symbol': row.find_elements(By.CLASS_NAME, 't-subtitle1')[0].text,
-            'type': row.find_elements(By.CLASS_NAME, 'bn-bubble-content')[1].text,
+            'type': self.get_type(row),
             'pnl': extract_number(self.get_value_of_trade_param('PnL после закрытия позиций', row)),
             'is_profit': extract_number(self.get_value_of_trade_param('PnL после закрытия позиций', row)) >= 0
         }
 
-    def _load_traders(self) -> None:
-        try:
-            with open(self.file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception:
-            self.traders = []; return
-        if isinstance(data, dict) and 'traders' in data:
-            self.root_is_dict = True; self.traders = data['traders']
-        elif isinstance(data, list):
-            self.traders = data
-        else:
-            self.traders = []
-        if self.traders and isinstance(self.traders[0], dict):
-            for k in ('trades', 'traders'):
-                if k in self.traders[0]:
-                    self.per_trader_list_key = k; break
-
-    def _save_traders(self) -> None:
-        payload = {'traders': self.traders} if self.root_is_dict else self.traders
-        with open(self.file_path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=4, ensure_ascii=False, default=str)
 
     def _element(self, by: By, selector: str):
         return self.get_element(by, selector)
