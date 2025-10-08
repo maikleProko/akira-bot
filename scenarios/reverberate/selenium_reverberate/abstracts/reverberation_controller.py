@@ -1,4 +1,4 @@
-from scenarios.reverberate.abstracts.reverberation_parser import ReverberationParser
+from scenarios.reverberate.selenium_reverberate.abstracts.reverberation_parser import ReverberationParser
 
 
 class ReverberationController:

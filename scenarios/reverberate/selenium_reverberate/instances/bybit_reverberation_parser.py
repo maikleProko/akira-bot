@@ -1,13 +1,12 @@
 from selenium.webdriver.common.by import By
 
-from scenarios.reverberate.abstracts.reverberation_parser import *
-import re
+from scenarios.reverberate.selenium_reverberate.abstracts.reverberation_parser import *
 
 
-class BinanceReverberationParser(ReverberationParser):
+class BybitReverberationParser(ReverberationParser):
     def __init__(self):
-        self.url = 'https://www.binance.com/en/trade/BTC_USDT?type=spot'
-        self.market = 'binance'
+        self.url = 'https://www.bybit.com/en/trade/spot/BTC/USDT'
+        self.market = 'bybit'
         super().__init__()
 
     def is_have_particles(self):

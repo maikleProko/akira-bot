@@ -1,8 +1,6 @@
-from scenarios.reverberate.abstracts.reverberation_controller import ReverberationController
-from scenarios.reverberate.instances.binance_reverberation_parser import BinanceReverberationParser
+from scenarios.reverberate.history_reverberate.history_reverberate import history_reverberate
+from scenarios.reverberate.selenium_reverberate.selenium_reverberate import selenium_reverberate
 
 
 def reverberate():
-    reverberation_controller = ReverberationController([
-        BinanceReverberationParser()
-    ])
+    history_reverberate()
