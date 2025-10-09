@@ -20,11 +20,8 @@ def get_parser(exchange_name: str) -> HistoryReverberationParser:
     raise ValueError(f"Unknown exchange: {exchange_name}")
 
 
-def history_reverberate():
-    parser = get_parser("binance")
-    current_time = datetime.utcnow().replace(tzinfo=timezone.utc)
-    start_time = current_time - timedelta(minutes=50)
-    end_time = current_time - timedelta(minutes=1)
+def history_reverberate_with_prepared_data(platform_name, start_time, end_time, symbol):
+    parser = get_parser(platform_name)
     reverberation_results = parser.reverberate_in_period(
         start_datetime=start_time,
         end_datetime=end_time,
@@ -33,3 +30,15 @@ def history_reverberate():
     )
     for item in reverberation_results:
         print(item)
+
+def get_time_from_string(datetime_string):
+    return datetime.strptime(datetime_string, "%Y-%m-%d %H:%M:%S")-timedelta(hours=3)
+
+
+
+
+
+def history_reverberate(platform_name, start_time_string, end_time_string, symbol):
+    start_time = get_time_from_string(start_time_string)
+    end_time = get_time_from_string(end_time_string)
+    history_reverberate_with_prepared_data(platform_name, start_time, end_time, symbol)

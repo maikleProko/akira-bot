@@ -34,6 +34,7 @@ class HistoryReverberationParser(ABC):
         max_window_minutes = max(multi_window_minutes)
         results: List[Dict] = []
         for minute_start in window_minute_starts:
+            print('[' + str(minute_start) + '/' + str(window_minute_starts[len(window_minute_starts)-1]) + ']')
             results.append(self._reverberate_for_minute_with_multi_windows(minute_start, symbol, multi_window_minutes, max_window_minutes))
         return results
 

@@ -34,4 +34,6 @@ class BinanceHistoryReverberationParser(HistoryReverberationParser):
             last_start_milliseconds = int(batch[-1].get("T", last_start_milliseconds)) + 1
             if last_start_milliseconds > end_milliseconds:
                 break
-        return [t for t in all_trades if start_milliseconds <= t["time"] <= end_milliseconds]
+
+        result = [t for t in all_trades if start_milliseconds <= t["time"] <= end_milliseconds]
+        return result
