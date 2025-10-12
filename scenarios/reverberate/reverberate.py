@@ -8,7 +8,4 @@ from scenarios.reverberate.selenium_reverberate.selenium_reverberate import sele
 
 
 def reverberate():
-    #aggregation_reverb()
-    #aggregation_reverb()
-    fast_reverb('files/reverberation_data_merged.json')
-    #history_reverberate('binance', '2025-10-08 10:00:00', '2025-10-08 18:00:00', 'ETHUSDT')
+    history_reverberate('binance', '2025-10-01 10:00:00', '2025-10-10 18:00:00', 'ETHUSDT')

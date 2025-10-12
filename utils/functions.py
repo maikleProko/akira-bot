@@ -22,3 +22,11 @@ def load_json(file_path: str) -> dict:
         raise FileNotFoundError(f"Файл {file_path} не найден")
     except json.JSONDecodeError as e:
         raise json.JSONDecodeError(f"Ошибка при разборке JSON в файле {file_path}: {str(e)}")
+
+
+class MarketProcess:
+    def prepare(self):
+        pass
+
+    def run(self):
+        pass

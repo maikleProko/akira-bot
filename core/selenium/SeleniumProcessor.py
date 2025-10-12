@@ -100,6 +100,11 @@ class SeleniumProcessor:
         WebDriverWait(self.driver, timeout=300).until(EC.url_changes(previous_url))
         logger.info("Go to link {}".format(url))
 
+    def go_no_wait(self, url):
+        self.driver.get(url)
+        sleep(1)
+        logger.info("Go to link {}".format(url))
+
     def go_no_check(self, url):
         previous_url = self.driver.current_url
         self.driver.get(url)
