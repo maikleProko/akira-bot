@@ -46,16 +46,9 @@ logger = logging.getLogger(__name__)
 class BinanceParser(LeaderboardParser):
     def __init__(self, file_path: str = 'files/binance_traders.json'):
         self.file_path = file_path
-        self.traders: List[Dict[str, Any]] = []
-        self.root_is_dict = False
-        self.per_trader_list_key = 'trades'   # will be autodetected on load
         super().__init__()
 
     # ----- public flow -----
-    def run(self) -> None:
-        self.go_leaderboard()
-        #self.get_traders_all()
-        self.parse_all_trades()
 
     def go_leaderboard(self) -> None:
         self.go_no_check(LEADERBOARD_URL)
@@ -159,10 +152,6 @@ class BinanceParser(LeaderboardParser):
             return datetime.now()
         return datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
 
-
-    def get_trade_params(self, row):
-        return self.get_parent_element(self.get_parent_element(self.get_element_in_element_using_text(row, 'Открыто')))
-
     def get_type(self, row):
         text = row.find_elements(By.CLASS_NAME, 'bn-bubble-content')[1].text
 
@@ -194,23 +183,5 @@ class BinanceParser(LeaderboardParser):
         }
 
 
-    def _element(self, by: By, selector: str):
-        return self.get_element(by, selector)
-
-    def _click(self, el) -> None:
-        try:
-            self.driver.execute_script("arguments[0].scrollIntoView({block:'center'});", el)
-            sleep(0.2); ActionChains(self.driver).move_to_element(el).click().perform(); return
-        except (ElementClickInterceptedException, WebDriverException):
-            pass
-        try:
-            self.driver.execute_script(
-                "var f = document.getElementById('trade-status-footer-v2'); if (f) { f.style.display='none'; }"
-            )
-            sleep(0.1); self.driver.execute_script("arguments[0].click();", el); return
-        except Exception:
-            pass
-        try:
-            self.driver.execute_script("arguments[0].click();", el); return
-        except Exception as e:
-            logger.exception("Click failed"); raise ElementClickInterceptedException(f"Не удалось кликнуть: {e}")
+    def get_trade_params(self, row):
+        return self.get_parent_element(self.get_parent_element(self.get_element_in_element_using_text(row, 'Открыто')))
