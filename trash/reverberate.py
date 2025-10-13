@@ -1,4 +1,5 @@
 from scenarios.reverberate.analyze_reverberate.aggregation_reverb import aggregation_reverb
+from scenarios.reverberate.analyze_reverberate.fast_multi_minutes_reverb import fast_multi_minutes_reverb
 from scenarios.reverberate.analyze_reverberate.fast_reverb import fast_reverb
 from scenarios.reverberate.analyze_reverberate.plot_reverb import plot_reverb
 
@@ -8,4 +9,4 @@ from scenarios.reverberate.selenium_reverberate.selenium_reverberate import sele
 
 
 def reverberate():
-    history_reverberate('binance', '2025-10-01 10:00:00', '2025-10-10 18:00:00', 'ETHUSDT')
+    fast_multi_minutes_reverb('files/reverberation_data_BTCUSDT_binance.json')

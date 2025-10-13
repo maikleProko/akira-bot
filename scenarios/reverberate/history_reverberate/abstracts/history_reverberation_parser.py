@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
+from time import sleep
 from typing import List, Dict, Optional
 
 from scenarios.reverberate.history_reverberate.constants import *
@@ -14,6 +15,19 @@ class HistoryReverberationParser(ABC):
         self.time_service = TimeService()
         self.aggregation_service = AggregationService()
         self.reverberation_service = ReverberationService()
+        self.results = []
+
+    def reverberate_in_minute(self, minute_start, window_minute_starts, symbol, multi_window_minutes, max_window_minutes):
+        try:
+            print('[' + str(minute_start) + '/' + str(window_minute_starts[len(window_minute_starts)-1]) + ']')
+            element = self._reverberate_for_minute_with_multi_windows(minute_start, symbol, multi_window_minutes, max_window_minutes)
+            self.results.append(element)
+        except Exception as e:
+            print('------------')
+            print('error: ' + str(e))
+            print('retrying...')
+            sleep(2)
+            self.reverberate_in_minute(minute_start, window_minute_starts, symbol, multi_window_minutes,max_window_minutes)
 
     def reverberate_in_period(
         self,
@@ -32,11 +46,10 @@ class HistoryReverberationParser(ABC):
             multi_window_minutes = DEFAULT_MULTI_WINDOW_MINUTES
         window_minute_starts = self.time_service.minute_range(start_datetime, end_datetime)
         max_window_minutes = max(multi_window_minutes)
-        results: List[Dict] = []
+        self.results: List[Dict] = []
         for minute_start in window_minute_starts:
-            print('[' + str(minute_start) + '/' + str(window_minute_starts[len(window_minute_starts)-1]) + ']')
-            results.append(self._reverberate_for_minute_with_multi_windows(minute_start, symbol, multi_window_minutes, max_window_minutes))
-        return results
+            self.reverberate_in_minute(minute_start, window_minute_starts, symbol, multi_window_minutes, max_window_minutes)
+        return self.results
 
     def _reverberate_for_minute_with_multi_windows(
         self,

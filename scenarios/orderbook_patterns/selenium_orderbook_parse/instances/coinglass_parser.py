@@ -121,7 +121,6 @@ class CoinglassParser(SeleniumOrderbookParser):
         }
 
     def go_coinglass(self):
-        print(f'{COINGLASS_URL}{self.symbol1}-{self.symbol2}')
         # Перейти без ожидания (ваш метод). После навигации лучше подождать элемент, который гарантирует,
         # что страница нужная и JS подгрузился:
         self.go_no_wait(f'{COINGLASS_URL}{self.symbol1}-{self.symbol2}')
