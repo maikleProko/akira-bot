@@ -20,7 +20,7 @@ def do_strategy(parser, orderbook):
     - Лучший error handling и logging.
     - Diversification hint: run on multiple pairs with correlation check (not implemented here).
     Вход:
-      - parser: CoinglassParser с symbol1, symbol2, lower_bound (float из Nadaraya+ATR), добавлены atr_current, ma_200, rsi_current.
+      - parser: SeleniumCoinglassParser с symbol1, symbol2, lower_bound (float из Nadaraya+ATR), добавлены atr_current, ma_200, rsi_current.
       - orderbook: dict с 'bids'/'asks'.
     Результат:
       JSON-line в files/orderbook_decisions.txt при входе.

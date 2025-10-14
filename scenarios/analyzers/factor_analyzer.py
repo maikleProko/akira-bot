@@ -1,6 +1,8 @@
-import os
 import datetime
-from collections import deque
+import numpy as np
+from datetime import datetime, timedelta
+import os
+import json
 
 class MarketProcess:
     def prepare(self):
@@ -9,275 +11,190 @@ class MarketProcess:
     def run(self):
         pass
 
-
 class FactorAnalyzer(MarketProcess):
-    """
-    Rule-based factor analyser that decides whether to enter a scalp-long.
-    Writes entry signals to console and appends each as a new line into 'files/longs.txt'.
-    """
-
-    def __init__(
-        self,
-        history_market_parser,
-        orderbook_parser,
-        nwe_bounds_indicator,
-        atr_bounds_indicator,
-        # configurable thresholds
-        top_n_depth=5,
-        min_depth_imbalance=0.15,
-        min_top_bid_increase_pct=0.12,
-        max_spread_pct=0.0006,
-        touch_eps_rel=0.0005,
-        touch_eps_abs=0.5,
-        cooldown_s=3,
-        min_bid_total=0.001,
-        out_filepath="files/longs.txt",
-    ):
+    def __init__(self, history_market_parser, orderbook_parser, nwe_bounds_indicator, atr_bounds_indicator):
         self.history_market_parser = history_market_parser
         self.orderbook_parser = orderbook_parser
-        self.nwe = nwe_bounds_indicator
-        self.atr = atr_bounds_indicator
+        self.nwe_bounds_indicator = nwe_bounds_indicator
+        self.atr_bounds_indicator = atr_bounds_indicator
+        self.previous_cvd = 0  # Для fallback
 
-        # thresholds / params
-        self.top_n_depth = top_n_depth
-        self.min_depth_imbalance = min_depth_imbalance
-        self.min_top_bid_increase_pct = min_top_bid_increase_pct
-        self.max_spread_pct = max_spread_pct
-        self.touch_eps_rel = touch_eps_rel
-        self.touch_eps_abs = touch_eps_abs
-        self.cooldown_s = cooldown_s
-        self.min_bid_total = min_bid_total
+    def load_historical_orderbooks(self, current_time, num_minutes=5):
+        historical_obs = []
+        for i in range(num_minutes):
+            prev_time = current_time - timedelta(minutes=i)
+            year, month, day = prev_time.year, prev_time.month, prev_time.day
+            hour, minute = prev_time.hour, prev_time.minute
+            path = f'files/orderbook/beautifulsoup/coinglass/beautifulsoup_coinglass_orderbook_BTC-USDT-{year:04d}:{month:02d}:{day:02d}_{hour:02d}:{minute:02d}.json'
+            if os.path.exists(path):
+                with open(path, 'r') as f:
+                    ob = json.load(f)
+                    historical_obs.append(ob)
+        return historical_obs[::-1]  # От старого к новому
 
-        # output file
-        self.out_filepath = out_filepath
+    def calculate_orderbook_score(self):
+        current_ob = self.orderbook_parser.orderbook
+        if not current_ob or 'bids' not in current_ob or 'asks' not in current_ob:
+            return 0
 
-        # internal buffers for micro-features (keep last few mid prices and top sizes)
-        self.prev_mids = deque(maxlen=10)
-        self.prev_top_bid_amount = None
-        self.prev_top_ask_amount = None
-        self.prev_time = None
-        self.last_signal_time = None
+        historical_obs = self.load_historical_orderbooks(datetime.now(), num_minutes=5)
+        if len(historical_obs) < 2:
+            # Fallback на текущий
+            bids = current_ob['bids'][:10]
+            asks = current_ob['asks'][:10]
+            sum_bid_vol = sum(b['amount'] for b in bids)
+            sum_ask_vol = sum(a['amount'] for a in asks)
+            ir = (sum_bid_vol - sum_ask_vol) / (sum_bid_vol + sum_ask_vol + 1e-6)
+            delta_flow = 0
+            spoof_variance = 0
+            spoof_factor = 1
+            depth_norm = min((sum_bid_vol + sum_ask_vol) / 2 / 1000, 1)
+            cvd = sum_bid_vol - sum_ask_vol
+        else:
+            deltas = []
+            for ob in historical_obs:
+                bids = ob['bids'][:10]  # Топ-10 уровней, шаг 10 USD - глубина ~100 USD
+                asks = ob['asks'][:10]
+                sum_bid = sum(b['amount'] for b in bids)
+                sum_ask = sum(a['amount'] for a in asks)
+                delta = sum_bid - sum_ask
+                deltas.append(delta)
 
-    def _get_bounds(self, obj):
-        if obj is None:
-            return None
-        # try direct attribute .bounds
-        try:
-            b = getattr(obj, "bounds")
-            if callable(b):
-                b = b()
-            if b:
-                return b
-        except Exception:
-            pass
-        # try method get_bounds()
-        try:
-            getb = getattr(obj, "get_bounds", None)
-            if callable(getb):
-                b = getb()
-                if b:
-                    return b
-        except Exception:
-            pass
-        # try attribute .last or .current or .latest
-        for attr in ("last", "current", "latest"):
-            try:
-                b = getattr(obj, attr)
-                if callable(b):
-                    b = b()
-                if b:
-                    return b
-            except Exception:
-                pass
-        # try direct attributes .upper .lower
-        try:
-            upper = getattr(obj, "upper")
-            lower = getattr(obj, "lower")
-            return {"upper": upper, "lower": lower}
-        except Exception:
-            pass
-        # fallback: if object itself is dict-like
-        try:
-            if isinstance(obj, dict) and "lower" in obj and "upper" in obj:
-                return obj
-        except Exception:
-            pass
-        return None
+            cvd = sum(deltas)  # Cumulative Volume Delta
+            prev_avg_delta = np.mean(deltas[:-1])
+            delta_flow = deltas[-1] - prev_avg_delta
+            spoof_variance = np.var(deltas)
+            spoof_factor = 1 if spoof_variance < 500 else 0  # Порог для BTC, adjust по бэктесту
 
-    def _log_signal(self, text):
-        """
-        Append text as a new line to self.out_filepath.
-        Ensure directory exists. Fail silently on errors to avoid breaking main loop.
-        """
-        try:
-            folder = os.path.dirname(self.out_filepath)
-            if folder and not os.path.exists(folder):
-                os.makedirs(folder, exist_ok=True)
-            # append line with newline
-            with open(self.out_filepath, "a", encoding="utf-8") as f:
-                f.write(text + "\n")
-                try:
-                    f.flush()
-                    os.fsync(f.fileno())
-                except Exception:
-                    # if fsync not permitted, ignore
-                    pass
-        except Exception:
-            # do not raise — logging should not break runtime
-            pass
+            # IR и depth на последнем (текущем)
+            sum_bid_vol = sum(b['amount'] for b in current_ob['bids'][:10])
+            sum_ask_vol = sum(a['amount'] for a in current_ob['asks'][:10])
+            ir = (sum_bid_vol - sum_ask_vol) / (sum_bid_vol + sum_ask_vol + 1e-6)
+            depth_norm = min((sum_bid_vol + sum_ask_vol) / 2 / 1000, 1)
 
-    def prepare(self):
-        pass
+        # Композитный score, включая исторический CVD
+        score_ob = (ir * 0.3) + (delta_flow / 1000 * 0.2) + (spoof_factor * 0.2) + (depth_norm * 0.1) + (cvd / 10000 * 0.2)
+        return score_ob, cvd
+
+    def detect_sweep_and_manipulation(self, df, is_long=True):
+        if len(df) < 3:
+            return False, False
+
+        last_candle = df.iloc[-1]
+        prev_candle = df.iloc[-2]
+
+        if is_long:
+            sweep = last_candle['low'] < prev_candle['low']
+            wick_lower = min(last_candle['open'], last_candle['close']) - last_candle['low']
+            body = abs(last_candle['close'] - last_candle['open'])
+            manipulation = wick_lower > 2 * body and last_candle['close'] > last_candle['open']
+        else:
+            sweep = last_candle['high'] > prev_candle['high']
+            wick_upper = last_candle['high'] - max(last_candle['open'], last_candle['close'])
+            body = abs(last_candle['close'] - last_candle['open'])
+            manipulation = wick_upper > 2 * body and last_candle['close'] < last_candle['open']
+
+        return sweep, manipulation
+
+    def detect_fvg(self, df, is_long=True):
+        if len(df) < 3:
+            return False
+
+        candle1 = df.iloc[-3]
+        candle3 = df.iloc[-1]
+        if is_long:
+            fvg = candle1['high'] < candle3['low']
+        else:
+            fvg = candle1['low'] > candle3['high']
+        return fvg
+
+    def calculate_rsi(self, df, period=14):
+        if len(df) < period + 1:
+            return 50
+
+        delta = df['close'].diff()
+        gain = delta.where(delta > 0, 0).rolling(window=period).mean()
+        loss = -delta.where(delta < 0, 0).rolling(window=period).mean()
+        rs = gain / (loss + 1e-6)
+        rsi = 100 - (100 / (1 + rs))
+        return rsi.iloc[-1]
+
+    def calculate_ema_crossover(self, df, is_long=True):
+        if len(df) < 21:
+            return False
+
+        ema9 = df['close'].ewm(span=9, adjust=False).mean()
+        ema21 = df['close'].ewm(span=21, adjust=False).mean()
+        if is_long:
+            crossover = ema9.iloc[-1] > ema21.iloc[-1] and ema9.iloc[-2] <= ema21.iloc[-2]
+        else:
+            crossover = ema9.iloc[-1] < ema21.iloc[-1] and ema9.iloc[-2] >= ema21.iloc[-2]
+        return crossover
 
     def run(self):
-        # Ensure data availability
-        try:
-            df = getattr(self.history_market_parser, "df", None)
-            orderbook = getattr(self.orderbook_parser, "orderbook", None)
-        except Exception:
-            df = None
-            orderbook = None
-
-        if df is None:
-            return
-        try:
-            if hasattr(df, "empty") and df.empty:
-                return
-        except Exception:
-            pass
-
-        if orderbook is None or not orderbook.get("bids") or not orderbook.get("asks"):
+        df = self.history_market_parser.df
+        if df.empty:
             return
 
-        # get bounds
-        atr_bounds = self._get_bounds(self.atr)
-        nwe_bounds = self._get_bounds(self.nwe)
-        if atr_bounds is None or nwe_bounds is None:
+        current_time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        current_price = df['close'].iloc[-1]
+
+        nwe = self.nwe_bounds_indicator.bounds
+        atr = self.atr_bounds_indicator.bounds
+
+        if not nwe or not atr:
             return
 
-        try:
-            # accept dict-like or object-like
-            if isinstance(atr_bounds, dict):
-                lower_atr = float(atr_bounds.get("lower"))
-            else:
-                lower_atr = float(atr_bounds["lower"]) if isinstance(atr_bounds, (list, tuple)) else float(getattr(atr_bounds, "lower", None))
-            if isinstance(nwe_bounds, dict):
-                lower_nwe = float(nwe_bounds.get("lower"))
-            else:
-                lower_nwe = float(nwe_bounds["lower"]) if isinstance(nwe_bounds, (list, tuple)) else float(getattr(nwe_bounds, "lower", None))
-        except Exception:
-            try:
-                lower_atr = float(atr_bounds.lower)
-                lower_nwe = float(nwe_bounds.lower)
-            except Exception:
-                return
+        score_ob, cvd = self.calculate_orderbook_score()
 
-        min_lower = min(lower_atr, lower_nwe)
+        rsi = self.calculate_rsi(df)
 
-        # obtain top-of-book
-        try:
-            top_bid = orderbook["bids"][0]
-            top_ask = orderbook["asks"][0]
-            best_bid = float(top_bid["price"])
-            best_ask = float(top_ask["price"])
-            top_bid_amount = float(top_bid.get("amount", top_bid.get("quantity", 0.0)))
-            top_ask_amount = float(top_ask.get("amount", top_ask.get("quantity", 0.0)))
-        except Exception:
-            return
+        current_atr_approx = df['high'].iloc[-1] - df['low'].iloc[-1]
+        avg_atr = (atr['upper'] - atr['lower']) / 2
 
-        mid = (best_bid + best_ask) / 2.0
-        spread = best_ask - best_bid
-        spread_pct = spread / mid if mid > 0 else float("inf")
+        # Long сигнал
+        sweep_low, manipulation_long = self.detect_sweep_and_manipulation(df, is_long=True)
+        fvg_long = self.detect_fvg(df, is_long=True)
+        ema_cross_long = self.calculate_ema_crossover(df, is_long=True)
+        print('---')
+        print('states:')
+        print(score_ob)
+        print(cvd)
+        print(current_price > nwe['lower'])
+        print(sweep_low and manipulation_long)
+        print(fvg_long)
+        print(rsi)
+        print(ema_cross_long)
+        print(current_atr_approx < 1.5 * avg_atr)
+        print('---')
 
-        # update buffers
-        now = datetime.datetime.utcnow()
-        self.prev_mids.append(mid)
-        prev_mid = self.prev_mids[-2] if len(self.prev_mids) >= 2 else None
+        if (score_ob > 0.6 and
+            cvd > 0 and
+            current_price > nwe['lower'] and
+            sweep_low and manipulation_long and
+            fvg_long and
+            45 < rsi < 55 and
+            ema_cross_long and
+            current_atr_approx < 1.5 * avg_atr):
 
-        # compute top N depth sums
-        bids = orderbook.get("bids", [])[: self.top_n_depth]
-        asks = orderbook.get("asks", [])[: self.top_n_depth]
-        sum_bid = sum(float(b.get("amount", 0.0)) for b in bids)
-        sum_ask = sum(float(a.get("amount", 0.0)) for a in asks)
-        total_depth = sum_bid + sum_ask if (sum_bid + sum_ask) > 0 else 1e-9
-        depth_imbalance = (sum_bid - sum_ask) / total_depth
+            print(f"Entering long trade at {current_time_str}")
+            with open('/files/decisions.txt', 'a') as f:
+                f.write(f"Entering long trade at {current_time_str}\n")
 
-        # change of top bid size vs previous tick
-        top_bid_increase_pct = 0.0
-        if self.prev_top_bid_amount is not None and self.prev_top_bid_amount > 0:
-            top_bid_increase_pct = (top_bid_amount - self.prev_top_bid_amount) / self.prev_top_bid_amount
+        # Short сигнал
+        sweep_high, manipulation_short = self.detect_sweep_and_manipulation(df, is_long=False)
+        fvg_short = self.detect_fvg(df, is_long=False)
+        ema_cross_short = self.calculate_ema_crossover(df, is_long=False)
 
-        # top ask decrease percent
-        top_ask_decrease_pct = 0.0
-        if self.prev_top_ask_amount is not None and self.prev_top_ask_amount > 0:
-            top_ask_decrease_pct = (self.prev_top_ask_amount - top_ask_amount) / self.prev_top_ask_amount
+        if (score_ob < -0.6 and
+            cvd < 0 and
+            current_price < nwe['upper'] and
+            sweep_high and manipulation_short and
+            fvg_short and
+            45 < rsi < 55 and
+            ema_cross_short and
+            current_atr_approx < 1.5 * avg_atr):
 
-        # micro-return since prev tick
-        micro_return = None
-        if prev_mid is not None and prev_mid > 0:
-            micro_return = (mid - prev_mid) / prev_mid
-
-        # Distance to min lower
-        distance_abs = mid - min_lower
-        distance_rel = distance_abs / mid if mid > 0 else 1.0
-        eps = max(self.touch_eps_rel * mid, self.touch_eps_abs)  # absolute epsilon
-        touch_condition = (mid <= min_lower + eps) or (distance_rel <= self.touch_eps_rel)
-
-        # Cooldown check
-        if self.last_signal_time is not None:
-            elapsed_since_last = (now - self.last_signal_time).total_seconds()
-        else:
-            elapsed_since_last = 1e9
-
-        # Safety checks: spread, minimal depth
-        if total_depth < self.min_bid_total:
-            # illiquid snapshot
-            self.prev_top_bid_amount = top_bid_amount
-            self.prev_top_ask_amount = top_ask_amount
-            return
-
-        if spread_pct > self.max_spread_pct:
-            # too wide spread
-            self.prev_top_bid_amount = top_bid_amount
-            self.prev_top_ask_amount = top_ask_amount
-            return
-
-        # Decision logic (conservative, multiple confirmations)
-        buy_pressure_confirm = (
-            (depth_imbalance >= self.min_depth_imbalance)
-            and (top_bid_increase_pct >= self.min_top_bid_increase_pct or top_ask_decrease_pct >= self.min_top_bid_increase_pct)
-        )
-
-        # Avoid if strong negative micro momentum
-        momentum_ok = True
-        if micro_return is not None and micro_return < -0.003:
-            momentum_ok = False
-
-        # final condition: price touched lower bound AND microstructure confirms buying pressure AND momentum not strongly negative
-        if touch_condition and buy_pressure_confirm and momentum_ok and elapsed_since_last >= self.cooldown_s:
-            reason = {
-                "mid": round(mid, 2),
-                "min_lower": round(min_lower, 2),
-                "distance_abs": round(distance_abs, 4),
-                "distance_rel": round(distance_rel, 6),
-                "depth_imbalance": round(depth_imbalance, 4),
-                "top_bid_increase_pct": round(top_bid_increase_pct, 4),
-                "top_ask_decrease_pct": round(top_ask_decrease_pct, 4),
-                "spread_pct": round(spread_pct, 6),
-            }
-            tstr = now.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-            msg = f"[ENTRY_SIGNAL] time={tstr} instrument=BTCUSDT mid={mid:.2f} min_lower={min_lower:.2f} reason={reason}"
-
-            # print to console
-            print(msg)
-
-            # append to file
-            self._log_signal(msg)
-
-            # update last signal time
-            self.last_signal_time = now
-
-        # store prevs for next tick
-        self.prev_top_bid_amount = top_bid_amount
-        self.prev_top_ask_amount = top_ask_amount
-        self.prev_time = now
+            print(f"Entering short trade at {current_time_str}")
+            with open('/files/decisions.txt', 'a') as f:
+                f.write(f"Entering short trade at {current_time_str}\n")

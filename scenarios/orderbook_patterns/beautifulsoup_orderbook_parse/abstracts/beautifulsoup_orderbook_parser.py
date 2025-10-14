@@ -1,15 +1,13 @@
-from abc import abstractmethod
-
-from core.selenium.SeleniumProcessor import SeleniumProcessor
+# scenarios/orderbook_patterns/beautifulsoup_orderbook_parse/abstracts/beautifulsoup_orderbook_parser.py
 from scenarios.orderbook_patterns.abstracts.depth_parser import DepthParser
 
 
-class SeleniumOrderbookParser(SeleniumProcessor, DepthParser):
+class BeautifulsoupOrderbookParser(DepthParser):
     def __init__(self, symbol1='BTC', symbol2='USDT'):
         super().__init__()
         self.symbol1 = symbol1
         self.symbol2 = symbol2
-        self.platform_name = 'selenium'
+        self.parse_type = 'beautifulsoup'
 
 
     def go_page(self):
@@ -32,3 +30,6 @@ class SeleniumOrderbookParser(SeleniumProcessor, DepthParser):
         """Парсинг текущей цены"""
         pass
 
+    def close(self):
+        """Закрытие ресурсов"""
+        pass

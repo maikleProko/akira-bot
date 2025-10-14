@@ -1,15 +1,12 @@
-from abc import abstractmethod
-
-from core.selenium.SeleniumProcessor import SeleniumProcessor
-from scenarios.orderbook_patterns.abstracts.depth_parser import DepthParser
 
 
-class SeleniumOrderbookParser(SeleniumProcessor, DepthParser):
+
+class DepthParser:
     def __init__(self, symbol1='BTC', symbol2='USDT'):
-        super().__init__()
         self.symbol1 = symbol1
         self.symbol2 = symbol2
-        self.platform_name = 'selenium'
+        self.parse_type = ''
+        self.platform_name = ''
 
 
     def go_page(self):
@@ -31,4 +28,3 @@ class SeleniumOrderbookParser(SeleniumProcessor, DepthParser):
     def parse_current_price(self):
         """Парсинг текущей цены"""
         pass
-

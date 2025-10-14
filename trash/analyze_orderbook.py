@@ -2,12 +2,12 @@ import json
 import os
 from datetime import datetime
 from scenarios.orderbook_patterns.estimate_orderbook.estimate_orderbook import do_strategy
-from scenarios.orderbook_patterns.selenium_orderbook_parse.instances.coinglass_parser import CoinglassParser
+from scenarios.orderbook_patterns.selenium_orderbook_parse.instances.selenium_coinglass_parser import SeleniumCoinglassParser
 from utils.decorators import periodic
 
 
 @periodic(second=0)  # запускать каждую минуту в начале минуты
-def run_coinglass_periodic(parser: CoinglassParser):
+def run_coinglass_periodic(parser: SeleniumCoinglassParser):
     orderbook = parser.parse_orderbook()
     do_strategy(parser, orderbook)
 
@@ -22,11 +22,11 @@ def run_coinglass_periodic(parser: CoinglassParser):
     with open(tmp_path, 'w', encoding='utf-8') as f:
         json.dump(orderbook, f, ensure_ascii=False, indent=2)
     os.replace(tmp_path, final_path)
-    print(f'[CoinglassParser] Saved orderbook to {final_path}')
+    print(f'[SeleniumCoinglassParser] Saved orderbook to {final_path}')
 
 
 def analyze_orderbook():
-    parser = CoinglassParser()
-    parser.go_coinglass()   # инициализация selenium/драйвера
+    parser = SeleniumCoinglassParser()
+    parser.go_page()   # инициализация selenium/драйвера
     # Запустит планировщик и будет блокировать поток (Ctrl+C — остановит)
     run_coinglass_periodic(parser)

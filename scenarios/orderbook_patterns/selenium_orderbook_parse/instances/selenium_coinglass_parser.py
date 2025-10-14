@@ -3,10 +3,7 @@ from selenium.webdriver.common.by import By
 from scenarios.orderbook_patterns.selenium_orderbook_parse.abstracts.selenium_orderbook_parser import (
     SeleniumOrderbookParser
 )
-import os
-import json
-from datetime import datetime
-from apscheduler.schedulers.blocking import BlockingScheduler
+
 
 COINGLASS_URL = 'https://www.coinglass.com/ru/mergev2/'
 
@@ -16,7 +13,10 @@ DEAL_TOTAL_CLASS = 'obv2-item-total'
 DEAL_TOTAL_SUBCLASS = 'MuiBox-root'
 
 
-class CoinglassParser(SeleniumOrderbookParser):
+class SeleniumCoinglassParser(SeleniumOrderbookParser):
+    def __init__(self):
+        super().__init__()
+        self.platform_name = 'coinglass'
 
     def parse_current_price(self):
         # Оставил заглушку — можно реализовать аналогично parse_deals, если есть подходящий селектор
@@ -120,7 +120,7 @@ class CoinglassParser(SeleniumOrderbookParser):
             'asks': self.parse_deals('.obv2-item.asks')
         }
 
-    def go_coinglass(self):
+    def go_page(self):
         # Перейти без ожидания (ваш метод). После навигации лучше подождать элемент, который гарантирует,
         # что страница нужная и JS подгрузился:
         self.go_no_wait(f'{COINGLASS_URL}{self.symbol1}-{self.symbol2}')
