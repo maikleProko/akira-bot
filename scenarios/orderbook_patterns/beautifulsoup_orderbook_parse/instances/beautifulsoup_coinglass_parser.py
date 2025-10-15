@@ -32,6 +32,20 @@ class BeautifulsoupCoinglassParser(BeautifulsoupOrderbookParser):
         self._loop = None
         self._initialized = False
         self.timer = 60
+        self._refresh_counter = 0  # Счетчик для обновления страницы раз в минуту (60 вызовов по 1 сек)
+        self._init_loop()
+
+    def _init_loop(self):
+        """Инициализация единого event loop для экземпляра"""
+        try:
+            self._loop = asyncio.get_event_loop()
+        except RuntimeError:
+            self._loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self._loop)
+
+    def _get_event_loop(self):
+        """Получаем event loop (всегда один и тот же)"""
+        return self._loop
 
     async def _init_browser(self):
         """Инициализация Playwright браузера"""
@@ -71,15 +85,6 @@ class BeautifulsoupCoinglassParser(BeautifulsoupOrderbookParser):
             return int(s)
         except:
             return None
-
-    def _get_event_loop(self):
-        """Получаем или создаем event loop"""
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        return loop
 
     def go_page(self):
         """Синхронный wrapper для go_page_async (инициализация и первая загрузка)"""
@@ -137,11 +142,21 @@ class BeautifulsoupCoinglassParser(BeautifulsoupOrderbookParser):
             await self._go_page_async()  # Если не инициализировано, делаем полный go
             return
 
-        # Рефреш страницы или просто получаем актуальный HTML
-        await self.page.reload(wait_until='networkidle', timeout=self.timeout)
-        await asyncio.sleep(1)  # Ждем стабилизации
+        self._refresh_counter += 1
 
-        # Повторяем скролл, если нужно
+        if self._refresh_counter >= 5:  # Обновляем страницу раз в минуту (60 секунд)
+            await self.page.reload(wait_until='networkidle', timeout=self.timeout)
+            self._refresh_counter = 0
+            # Ждем появления элементов после reload
+            try:
+                await self.page.wait_for_selector('.obv2-item, .ant-row', timeout=15000)
+            except Exception as e:
+                await asyncio.sleep(3)
+        else:
+            # Для динамических обновлений без reload просто ждем немного
+            await asyncio.sleep(1)  # Небольшая пауза для потенциального JS-обновления
+
+        # Всегда повторяем скролл, на случай если reload или изменения сбросили его
         try:
             await self.page.evaluate("""
                 const containers = document.querySelectorAll('.obv2-container, .ant-row, .scroll-container');
@@ -155,6 +170,7 @@ class BeautifulsoupCoinglassParser(BeautifulsoupOrderbookParser):
         except:
             pass
 
+        # Всегда обновляем soup из текущего рендера страницы (учитывает динамические изменения)
         html_content = await self.page.content()
         self.soup = BeautifulSoup(html_content, 'html.parser')
 
@@ -206,7 +222,7 @@ class BeautifulsoupCoinglassParser(BeautifulsoupOrderbookParser):
 
     def parse_orderbook(self):
         """Парсинг полного ордербука"""
-        self._go_page_async()
+        self.go_page()
 
         if not self.soup:
             raise ValueError("Сначала вызовите go_page()")
@@ -247,6 +263,8 @@ class BeautifulsoupCoinglassParser(BeautifulsoupOrderbookParser):
         """Синхронный wrapper для закрытия"""
         loop = self._get_event_loop()
         loop.run_until_complete(self._close_async())
+        if not loop.is_running():
+            loop.close()
 
     async def _close_async(self):
         """Асинхронное закрытие"""

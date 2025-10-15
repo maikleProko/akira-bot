@@ -12,9 +12,9 @@ class HistoryBinanceParser(HistoryMarketParser):
     """
     API_URL = "https://api.binance.com/api/v3/klines"
 
-    def __init__(self, slash_symbol: str = "BTC/USDT", minutes: int = 1000):
+    def __init__(self, symbol1: str = 'BTC', symbol2: str = 'USDT', minutes: int = 1000):
         super().__init__("binance")
-        self.slash_symbol = slash_symbol
+        self.slash_symbol = symbol1 + '/' + symbol2
         self.minutes = minutes
         self.headers = ["time", "open", "high", "low", "close", "volume"]
 

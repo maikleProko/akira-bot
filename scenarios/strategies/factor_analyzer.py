@@ -196,5 +196,5 @@ class FactorAnalyzer(MarketProcess):
             current_atr_approx < 1.5 * avg_atr):
 
             print(f"Entering short trade at {current_time_str}")
-            with open('/files/decisions.txt', 'a') as f:
+            with open('/files/decisions_FactorAnalyzer.txt', 'a') as f:
                 f.write(f"Entering short trade at {current_time_str}\n")
