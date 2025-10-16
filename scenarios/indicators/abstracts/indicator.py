@@ -10,6 +10,6 @@ class Indicator(MarketProcess):
     def prepare(self):
         pass
 
-    def run(self):
+    def run(self, start_time=None, current_time=None, end_time=None):
         pass
 

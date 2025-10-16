@@ -72,7 +72,7 @@ class LeaderboardParser(SeleniumProcessor):
         except Exception as e:
             logger.exception("Click failed"); raise ElementClickInterceptedException(f"Не удалось кликнуть: {e}")
 
-    def run(self) -> None:
+    def run(self, start_time=None, current_time=None, end_time=None) -> None:
         self.go_leaderboard()
         self.get_traders_all()
         self.parse_all_trades()

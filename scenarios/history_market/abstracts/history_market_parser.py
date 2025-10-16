@@ -25,7 +25,7 @@ class HistoryMarketParser(MarketProcess):
     def prepare(self):
         self.df = None
 
-    def run(self):
+    def run(self, start_time=None, current_time=None, end_time=None):
         raise NotImplementedError("Run should be implemented in subclasses.")
 
     def save_csv(self, filepath: str, headers: List[str], rows: List[List[Any]]) -> None:

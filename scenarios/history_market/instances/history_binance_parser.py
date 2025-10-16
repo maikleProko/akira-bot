@@ -63,10 +63,12 @@ class HistoryBinanceParser(HistoryMarketParser):
     def prepare(self):
         self.df = None
 
-    def run(self):
-        end = datetime.now()
-        start = end - timedelta(minutes=self.minutes)
-        self.parse(self.slash_symbol, interval="1m", start_time=start, end_time=end)
+    def run(self, start_time=None, current_time=None, end_time=None):
+        if start_time is None and current_time is None and end_time is None:
+            end_time = datetime.now()
+            start_time = end_time - timedelta(minutes=self.minutes)
+
+        self.parse(self.slash_symbol, interval="1m", start_time=start_time, end_time=end_time)
         return self.df
 
 

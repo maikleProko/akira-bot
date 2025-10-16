@@ -192,7 +192,7 @@ class OblStrategy:
     def _now(self):
         return time.time()
 
-    def run(self):
+    def run(self, start_time=None, current_time=None, end_time=None):
         # основной цикл, вызывается каждую секунду
         ts_now = self._now()
 
@@ -212,19 +212,17 @@ class OblStrategy:
             # print("[OblStrategy] waiting for data...")
             return
 
-        print(f'[OblStrategy] all variables exist [1/5]')
         # 2) проверка на свежесть (optionally)
         if self.p['min_data_age'] > 0:
             if ts_now - ob_snapshot['ts'] > self.p['min_data_age']:
                 # stale data
                 return
 
-        print(f'[OblStrategy] min age [2/5]')
 
         # 3) обновляем истории стакана для устойчивости кластеров
         self.orderbook_history.append(ob_snapshot)
 
-        # 4) вычисляем approx orderflow между двумя последними snapshot'ами
+        # 4) вычисляем approx orderflow между двумя двумя последними snapshot'ами
         flow_delta = self._update_flow(self.prev_snapshot, ob_snapshot) if self.prev_snapshot else {'buy': 0.0,
                                                                                                     'sell': 0.0}
         # Записываем в flow_history со временем
@@ -245,7 +243,6 @@ class OblStrategy:
             # некорректные bounds
             return
 
-        print(f'[OblStrategy] correct bounds')
         # 6) price / spread / liquidity checks
         best_bid = ob_snapshot['bids'][0]['price']
         best_ask = ob_snapshot['asks'][0]['price']
@@ -298,7 +295,6 @@ class OblStrategy:
         # - liquidity >= min
         # - not in cooldown
 
-        print(f'[OblStrategy] {str(mid_price)} <= ({str(lower_boundary)} + {(str(self.p["boundary_tol_abs"]))}) (LONG)')
         if mid_price <= (lower_boundary + self.p['boundary_tol_abs']):
             # cluster exist and near the price (or below)
             cond_cluster = (nearest_bid_cluster is not None) and bid_cluster_sustained
@@ -309,7 +305,8 @@ class OblStrategy:
                         recent_price_move < -self.p['momentum_threshold_ticks'])  # если цена резко падает — reject
             cond_cooldown = (ts >= self.cooldowns['long'])
             print(f'[OblStrategy] conds: [{str(cond_cluster)}, {str(cond_spread)}, {str(cond_liq)}, {str(cond_flow)}, {str(cond_momentum)}, {str(cond_cooldown)}]')
-            if cond_cluster and cond_spread and cond_liq and cond_flow and cond_momentum and cond_cooldown:
+            passed = sum([cond_cluster, cond_spread, cond_liq, cond_flow, cond_momentum, cond_cooldown])
+            if passed >= 5:
                 # формируем сигнал LONG
                 entry_price = best_ask  # либо mid или market; для сигнала возьмём текущую лучшую цену исполнения ask
                 # стоп можем вычислить как lower_boundary - buffer
@@ -337,10 +334,9 @@ class OblStrategy:
                 self.signals_log.append(signal)
                 message = "[OblStrategy][SIGNAL] LONG"
                 print(message)
-                with open('/files/decisions_OblStrategy.txt', 'a') as f:
+                with open('files/decisions_OblStrategy.txt', 'a') as f:
                     f.write(message + '\n')
 
-        print(f'[OblStrategy] {str(mid_price)} >= ({str(lower_boundary)} - {(str(self.p["boundary_tol_abs"]))}) (SHORT)')
         # SHORT decision (mirror)
         if mid_price >= (upper_boundary - self.p['boundary_tol_abs']):
             cond_cluster = (nearest_ask_cluster is not None) and ask_cluster_sustained
@@ -350,7 +346,8 @@ class OblStrategy:
             cond_momentum = not (recent_price_move > self.p['momentum_threshold_ticks'])
             cond_cooldown = (ts >= self.cooldowns['short'])
             print(f'[OblStrategy] conds: [{str(cond_cluster)}, {str(cond_spread)}, {str(cond_liq)}, {str(cond_flow)}, {str(cond_momentum)}, {str(cond_cooldown)}]')
-            if cond_cluster and cond_spread and cond_liq and cond_flow and cond_momentum and cond_cooldown:
+            passed = sum([cond_cluster, cond_spread, cond_liq, cond_flow, cond_momentum, cond_cooldown])
+            if passed >= 5:
                 entry_price = best_bid
                 stop_price = upper_boundary + 1.0
                 take_price = entry_price - (stop_price - entry_price) * 1.5

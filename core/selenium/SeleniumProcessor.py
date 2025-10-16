@@ -124,7 +124,7 @@ class SeleniumProcessor:
         )
         logger.info("Gan to link {}".format(url))
 
-    def run(self):
+    def run(self, start_time=None, current_time=None, end_time=None):
         pass
 
     def hover(self, css_selector):

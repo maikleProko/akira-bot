@@ -61,10 +61,22 @@ class NweBoundsIndicator(Indicator):
             return [], []
 
 
-    def run(self):
+    def run(self, start_time=None, current_time=None, end_time=None):
         df = self.history_market_parser.df
         upper, lower = self.get_nadaraya_compute(df['close'])
         self.bounds = {
             'upper': upper[-1],
             'lower': lower[-1],
         }
+        
+        if current_time is None:
+            self.bounds = {
+                'upper': upper[-1],
+                'lower': lower[-1]
+            }
+        else:
+            minutes_diff = abs((end_time - current_time).total_seconds()) / 60
+            self.bounds = {
+                'upper': upper[-1 * minutes_diff],
+                'lower': lower[-1 * minutes_diff]
+            }

@@ -13,7 +13,7 @@ class ReverberateParser(MarketProcess):
     def prepare(self):
         self.parser = get_parser(self.platform_name)
 
-    def run(self):
+    def run(self, start_time=None, current_time=None, end_time=None):
         datetime_now = datetime.now() - timedelta(hours=3)
         self.reverberations = self.parser.reverberate_in_period(
             start_datetime = datetime_now - timedelta(minutes=self.delta_minutes),

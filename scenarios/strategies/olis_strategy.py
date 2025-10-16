@@ -18,7 +18,7 @@ class OlisStrategy(MarketProcess):
     def prepare(self):
         pass
 
-    def run(self):
+    def run(self, start_time=None, current_time=None, end_time=None):
         # Get current data
         if self.orderbook_parser.orderbook is None:
             print('[OlisStrategy]  orderbook is None ')
@@ -52,9 +52,7 @@ class OlisStrategy(MarketProcess):
 
         # Volatility filter: current ATR > 1.2x average ATR over last 30 min
         avg_atr = np.mean(self.atr_history)
-        if atr_width <= 1.2 * avg_atr:
-            print('[OlisStrategy]  volatility too low ')
-            return
+        cond1 = atr_width > 1.2 * avg_atr
 
         # Lower bound for support
         lower_bound = min(nwe['lower'], atr['lower'])
@@ -66,9 +64,7 @@ class OlisStrategy(MarketProcess):
         bounce_percentage = (current_price - min_price) / min_price * 100
 
         # Check for dip to near lower_bound and subsequent bounce (>0.1% dip, >0.05% bounce)
-        if abs(current_price - min_price) / current_price < 0.001 or min_price > lower_bound * 1.001 or bounce_percentage <= 0.05:
-            print('[OlisStrategy]  no dip to near lower_bound and subsequent bounce (>0.1% dip, >0.05% bounce) ')
-            return
+        cond2 = abs(current_price - min_price) / current_price >= 0.001 and min_price <= lower_bound * 1.001 and bounce_percentage > 0.05
 
         # Check for sweep: volume decrease at the dipped level (>20% drop)
         pre_dip_idx = max(0, min_price_idx - 5)  # 5 sec before dip
@@ -84,9 +80,7 @@ class OlisStrategy(MarketProcess):
         dip_bids = [b for b in dip_ob['bids'] if abs(b['price'] - closest_level['price']) < 1e-6]
         dip_amount = dip_bids[0]['amount'] if dip_bids else 0
 
-        if dip_amount >= pre_amount * 0.8:  # No significant sweep
-            print('[OlisStrategy]  no significant sweep (dip_amount >= pre_amount * 0.8) ')
-            return
+        cond3 = dip_amount < pre_amount * 0.8
 
         # Compute imbalance and delta on current orderbook (top 10 levels)
         top_bid_sum = sum(b['amount'] for b in bids[:10])
@@ -94,14 +88,17 @@ class OlisStrategy(MarketProcess):
         imbalance = top_bid_sum / top_ask_sum if top_ask_sum > 0 else 0
         delta = top_bid_sum - top_ask_sum
 
+        cond4 = imbalance > 2
+        cond5 = delta > 50
 
-        print(f'[OlisStrategy]  conditions fit [{str(imbalance > 2)},{str(delta > 50)}] ')
+        print(f'[OlisStrategy]  conditions fit [{str(cond1)},{str(cond2)},{str(cond3)},{str(cond4)},{str(cond5)}] ')
 
-        # Thresholds: imbalance >2, delta >50 (arbitrary for BTC, adjust if needed)
-        if imbalance > 2 and delta > 50:
+        # Thresholds: at least 4 out of 5
+        passed = sum([cond1, cond2, cond3, cond4, cond5])
+        if passed >= 4:
             # Conditions met: signal entry
             current_time = datetime.datetime.now()
             message = f"Входим в сделку at {current_time}"
             print(message)
-            with open('/files/decisions_OlisStrategy.txt', 'a') as f:
+            with open('files/decisions_OlisStrategy.txt', 'a') as f:
                 f.write(message + '\n')

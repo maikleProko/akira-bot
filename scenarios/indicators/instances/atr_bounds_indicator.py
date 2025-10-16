@@ -63,10 +63,19 @@ class AtrBoundsIndicator(Indicator):
             print(f"Error in get_atr_compute: {e}")
             return [], []
 
-    def run(self):
+    def run(self, start_time=None, current_time=None, end_time=None):
         df = self.history_market_parser.df
         upper, lower = self.get_atr_compute(df, self.atr_period, self.atr_multiplier)
-        self.bounds = {
-            'upper': float(upper[-1]) if upper else 0,
-            'lower': float(lower[-1]) if lower else 0,
-        }
+        if current_time is None:
+            self.bounds = {
+                'upper': float(upper[-1]) if upper else 0,
+                'lower': float(lower[-1]) if lower else 0,
+            }
+        else:
+            minutes_diff = abs((end_time - current_time).total_seconds()) / 60
+            self.bounds = {
+                'upper': float(upper[-1 * minutes_diff]) if upper else 0,
+                'lower': float(lower[-1 * minutes_diff]) if lower else 0,
+            }
+
+

@@ -341,7 +341,7 @@ class SmartScalpStrategy(MarketProcess):
         pos_units = floor(self.risk_amount / stop_distance)
         return pos_units, stop_distance
 
-    def run(self):
+    def run(self, start_time=None, current_time=None, end_time=None):
         try:
             # main periodic call (expected every 1s)
             # 1) grab data
@@ -434,18 +434,21 @@ class SmartScalpStrategy(MarketProcess):
             # Decide whether to open LONG (mirror for SHORT can be added similarly)
             can_long = False
             # condition 1: price near StopBase
-            if price <= stopbase + margin:
-                # condition 2: OI bullish
-                if oi >= self.oi_threshold:
-                    # condition 3: either sweep detected OR bid pool near stopbase
-                    if sweep or bid_pool:
-                        # condition 4: orderflow confirmation (>=2 aggressive buys in last w_of)
-                        if aggr_count >= 1:  # conservative: require at least 1 aggressive event in last W_of
-                            # condition 5: cooldown check
-                            if cur_ts >= self.cooldown_until:
-                                can_long = True
+            cond1 = price <= stopbase + margin
+            # condition 2: OI bullish
+            cond2 = oi >= self.oi_threshold
+            # condition 3: either sweep detected OR bid pool near stopbase
+            cond3 = sweep or bid_pool
+            # condition 4: orderflow confirmation (>=2 aggressive buys in last w_of)
+            cond4 = aggr_count >= 1  # conservative: require at least 1 aggressive event in last W_of
+            # condition 5: cooldown check
+            cond5 = cur_ts >= self.cooldown_until
 
-            # build recommended order if can_long
+            passed = sum([cond1, cond2, cond3, cond4, cond5])
+            print(f'[SmartMoney] conds: [{str(cond1)}, {str(cond2)}, {str(cond3)}, {str(cond4)}, {str(cond5)}]')
+            if passed >= 4:
+                can_long = True
+
             if can_long:
                 entry_price = best_ask  # be slightly aggressive and target ask
                 sl_price = stopbase
@@ -478,7 +481,7 @@ class SmartScalpStrategy(MarketProcess):
                 message = f"[{time.ctime(cur_ts)}] SIGNAL: LONG entry={entry_price:.2f} size={pos_units} sl={sl_price:.2f} tp={tp_price:.2f} stop_dist=${stop_dist:.2f} oi={oi:.2f} aggr={aggr_count} sweep={sweep} bid_pool={bid_pool} spread={spread_pct:.4f}"
 
                 print(message)
-                with open('/files/decisions_SmartScalpStrategy.txt', 'a') as f:
+                with open('files/decisions_SmartScalpStrategy.txt', 'a') as f:
                     f.write(message + '\n')
 
                 self.last_signal_ts = cur_ts

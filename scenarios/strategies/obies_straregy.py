@@ -73,7 +73,7 @@ class ObiesStrategy(MarketProcess):
         # вызывается однократно при старте
         self.log.info("ScalpingDecision prepared. Params: topN=%s, agressor_window_s=%s", self.topN, self.aggressor_window_s)
 
-    def run(self):
+    def run(self, start_time=None, current_time=None, end_time=None):
         # главный цикл - вызывается каждую секунду (periodic)
         try:
             # Обновим дневную статистику
@@ -95,9 +95,9 @@ class ObiesStrategy(MarketProcess):
                 # попытка очистить историю и выйти
                 self._push_orderbook_snapshot(ob)
                 self._update_open_trades()
+                print(f'[ObiesStrategy] havent all')
                 return
 
-            print(f'[ObiesStrategy] have all [1/5]')
             # сортируем/нормализуем стакан и добавляем в историю
             ob_norm = self._normalize_orderbook(ob)
             self._push_orderbook_snapshot(ob_norm)
@@ -107,9 +107,9 @@ class ObiesStrategy(MarketProcess):
 
             # рассчитываем microprice (входная цена)
             microprice = metrics.get('microprice')
-            print(f'[ObiesStrategy] microprice: {str(microprice)} [2/5]')
             if microprice is None:
                 self.log.debug("No microprice, skipping")
+                print(f'[ObiesStrategy] no microprice')
                 self._update_open_trades()
                 return
 
@@ -119,8 +119,8 @@ class ObiesStrategy(MarketProcess):
             if lwe_lower is None or atr_lower is None:
                 self.log.debug("Bounds missing")
                 self._update_open_trades()
+                print(f'[ObiesStrategy] bounds missing')
                 return
-            print(f'[ObiesStrategy] bounds not missing [3/5]')
 
             min_lower = min(lwe_lower, atr_lower)
 
@@ -128,7 +128,6 @@ class ObiesStrategy(MarketProcess):
             can_enter, reasons = self._check_long_conditions(microprice, min_lower, metrics, nwe, atr, df)
 
             # проверка ограничений дневных / cooldown
-            print(f'[ObiesStrategy] can enter: {str(can_enter)} [4/5]')
             if can_enter:
                 if self.last_trade_time and (datetime.now() - self.last_trade_time).total_seconds() < self.cooldown_s:
                     can_enter = False
@@ -145,12 +144,12 @@ class ObiesStrategy(MarketProcess):
                 self.log.info("Opened LONG at %.2f (min_lower=%.2f). Metrics: %s", microprice, min_lower, metrics)
 
                 print(f'[ObiesStrategy] LONG [5/5]')
-                with open('/files/decisions_ObiesStrategy.txt', 'a') as f:
+                with open('files/decisions_ObiesStrategy.txt', 'a') as f:
                     f.write(str(datetime.now()) + '\n')
             else:
                 # для отладки: лог причины отказа иногда
                 if self.stats['tick'] % 5 == 0:
-                    print(f'[ObiesStrategy] CANCEL: {str(reasons)}, {str(metrics)}')
+                    print(f'[ObiesStrategy] CANCEL by conds: {str(reasons)}')
                     self.log.debug("No entry. Reasons: %s -- metrics: %s", reasons, metrics)
 
             # обновляем открытые позиции (закрытие по tp/sl)
@@ -337,63 +336,76 @@ class ObiesStrategy(MarketProcess):
         Возвращает (can_enter: bool, reasons: list[str])
         """
         reasons = []
+        passed_count = 0
+
         # 1) расстояние до min_lower <= max_stop_usd
         distance = microprice - min_lower
         if distance < 0:
-            # ниже lower - риск сильный, отклоняем
             reasons.append(f"below_min_lower distance={distance:.2f}")
-            return False, reasons
-        if distance > self.max_stop_usd:
+        elif distance > self.max_stop_usd:
             reasons.append(f"distance_to_lower_too_large {distance:.2f} > {self.max_stop_usd}")
-            return False, reasons
+        else:
+            passed_count += 1
 
         # 2) imbalance (orderbook absorption)
         imb5 = metrics.get('imbalance_top5') or 0.0
         imb1 = metrics.get('imbalance_top1') or 0.0
-        if not (imb5 >= self.imbalance_top5_threshold or imb1 >= self.imbalance_top1_threshold):
+        if imb5 >= self.imbalance_top5_threshold or imb1 >= self.imbalance_top1_threshold:
+            passed_count += 1
+        else:
             reasons.append(f"imbalance insufficient (top5={imb5:.2f}, top1={imb1:.2f})")
-            return False, reasons
 
         # 3) aggressor ratio
         ar = metrics.get('aggressor_ratio')
         if ar is None:
             reasons.append("aggressor_ratio_missing")
-            return False, reasons
-        if ar < self.aggressor_ratio_threshold:
-            reasons.append(f"aggressor_ratio_low {ar:.2f} < {self.aggressor_ratio_threshold}")
-            return False, reasons
+        else:
+            if ar >= self.aggressor_ratio_threshold:
+                passed_count += 1
+            else:
+                reasons.append(f"aggressor_ratio_low {ar:.2f} < {self.aggressor_ratio_threshold}")
 
         # 4) spread and liquidity
+        passed4 = True
         spread = metrics.get('spread', 999999)
         if spread > self.spread_threshold:
             reasons.append(f"spread_too_large {spread:.2f} > {self.spread_threshold}")
-            return False, reasons
+            passed4 = False
         if metrics.get('top5_depth_usd', 0.0) < self.min_top5_depth_usd:
             reasons.append(f"low_liquidity top5_depth_usd={metrics.get('top5_depth_usd'):.2f}")
-            return False, reasons
+            passed4 = False
+        if passed4:
+            passed_count += 1
 
         # 5) ATR/NWE context: избегаем периодов экстремальной ATR
         # Если у atr.bounds есть информация о "ширине" (upper-lower), проверим
         atr_width = None
         if atr and atr.get('upper') and atr.get('lower'):
             atr_width = abs(float(atr['upper']) - float(atr['lower']))
-            # простая фильтрация: если ширина ATR > 2 * max_stop_usd -> очень волатильно
-            if atr_width > 2.0 * self.max_stop_usd * 10:  # умножаем на 10 для BTC масштабирования; параметр можно подстроить
-                reasons.append(f"atr_too_wide {atr_width:.2f}")
-                return False, reasons
+        if atr_width is not None and atr_width > 2.0 * self.max_stop_usd * 10:  # умножаем на 10 для BTC масштабирования; параметр можно подстроить
+            reasons.append(f"atr_too_wide {atr_width:.2f}")
+        else:
+            passed_count += 1
 
         # 6) sweep detection (простой): нет резких однонаправленных выбиваний вниз в последние orderbook_window_s
         if self._detect_down_sweep():
             reasons.append("recent_down_sweep_detected")
-            return False, reasons
+        else:
+            passed_count += 1
 
-        # 7) cancel/spoof detection: простая эвристика
-        if self._detect_spoofing():
-            reasons.append("spoofing_detected")
+        # Проверяем, прошли ли хотя бы 5 из 6 условий
+        if passed_count >= 5:
+            # 7) cancel/spoof detection: простая эвристика (обязательное условие)
+            if self._detect_spoofing():
+                reasons.append("spoofing_detected")
+                return False, reasons
+            else:
+                return True, reasons
+        else:
+            # 7) все равно проверяем spoofing, но поскольку уже не прошли, добавляем если detected
+            if self._detect_spoofing():
+                reasons.append("spoofing_detected")
             return False, reasons
-
-        # все условия выполнены
-        return True, reasons
 
     def _detect_down_sweep(self):
         """

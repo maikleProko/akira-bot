@@ -127,5 +127,5 @@ class SeleniumCoinglassParser(SeleniumOrderbookParser):
         # Ждём элемент-контейнер (в вашем коде был ant-row) — get_element предположительно блокирующий
         self.get_element(By.CLASS_NAME, 'ant-row')
 
-    def run(self):
+    def run(self, start_time=None, current_time=None, end_time=None):
         pass

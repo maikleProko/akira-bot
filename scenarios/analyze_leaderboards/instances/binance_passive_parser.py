@@ -6,5 +6,5 @@ class BinancePassiveParser(LeaderboardParser):
         self.file_path = file_path
         super().__init__()
 
-    def run(self):
+    def run(self, start_time=None, current_time=None, end_time=None):
         self._load_traders()

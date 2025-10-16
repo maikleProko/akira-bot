@@ -8,7 +8,7 @@ class MarketProcess:
     def prepare(self):
         pass
 
-    def run(self):
+    def run(self, start_time=None, current_time=None, end_time=None):
         pass
 
 class FactorAnalyzer(MarketProcess):
@@ -131,7 +131,7 @@ class FactorAnalyzer(MarketProcess):
             crossover = ema9.iloc[-1] < ema21.iloc[-1] and ema9.iloc[-2] >= ema21.iloc[-2]
         return crossover
 
-    def run(self):
+    def run(self, start_time=None, current_time=None, end_time=None):
         df = self.history_market_parser.df
         if df.empty:
             return
