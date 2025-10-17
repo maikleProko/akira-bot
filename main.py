@@ -1,3 +1,1 @@
-from scenarios.main_processor import MainProcessor
-
-main_processor = MainProcessor()
+from scenarios import main_processor
