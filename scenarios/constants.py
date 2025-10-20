@@ -4,7 +4,9 @@ from scenarios.parsers.indicators.instances.nwe_bounds_indicator import NweBound
 from scenarios.parsers.orderbook_parser.beautifulsoup_orderbook_parse.instances.beautifulsoup_coinglass_parser import \
     BeautifulsoupCoinglassParser
 from scenarios.parsers.orderbook_parser.orderbook_parser import OrderbookParser
-from scenarios.strategies.historical_strategies.level_strategy.level_strategy import LevelStrategy
+from scenarios.strategies.historical_strategies.level_strategy.reverb_level_strategy import ReverbLevelStrategy
+from scenarios.strategies.historical_strategies.level_strategy.simple_level_strategy import SimpleLevelStrategy
+from scenarios.strategies.historical_strategies.level_strategy.smart_level_strategy import SmartLevelStrategy
 from scenarios.strategies.historical_strategies.test_strategy.test_strategy import TestStrategy
 
 #SYMBOLS
@@ -26,7 +28,7 @@ atr_bounds_indicator = AtrBoundsIndicator(history_market_parser)
 
 
 #PROCESSES (STRATEGIES)
-level_strategy = LevelStrategy(
+level_strategy = SmartLevelStrategy(
     history_market_parser=history_market_parser,
     orderbook_parser=orderbook_parser,
     nwe_bounds_indicator=nwe_bounds_indicator,

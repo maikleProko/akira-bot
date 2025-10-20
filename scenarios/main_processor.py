@@ -63,6 +63,7 @@ class HistoricalProcessor(MarketProcessor):
             try:
                 self._execute_market_processes(current_time)
             except Exception as e:
+                pass
                 print('[Processor] running error: ' + str(e))
             current_time += timedelta(minutes=self.minutes_interval)
 

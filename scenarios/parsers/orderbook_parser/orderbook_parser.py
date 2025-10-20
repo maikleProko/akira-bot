@@ -13,14 +13,17 @@ class OrderbookParser(MarketProcess):
         print(f"[OrderbookParser({self.parser.parse_type}_{self.parser.platform_name}_parser)] Подготовка {self.parser.parse_type}_{self.parser.platform_name}_parser...")
         self.parser.go_page()  # Теперь работает синхронно
 
-    def run_historical(self, start_time, current_time):
+    def get_by_time(self, current_time):
         current_time_string = current_time.strftime('%Y:%m:%d_%H:%M')
         in_dir = os.path.join('files', 'orderbook', f'{self.parser.parse_type}', f'{self.parser.platform_name}')
         fname = f'{self.parser.parse_type}_{self.parser.platform_name}_orderbook_{self.parser.symbol1}-{self.parser.symbol2}-{current_time_string}.json'
         final_path = os.path.join(in_dir, fname)
 
         with open(final_path, 'r') as file:
-            self.orderbook = json.load(file)
+            return json.load(file)
+
+    def run_historical(self, start_time, current_time):
+        self.orderbook = self.get_by_time(current_time)
 
     def run_realtime(self):
         try:
