@@ -16,8 +16,8 @@ symbol2 = 'USDT'
 
 #FOR HISTORICAL TRADING
 realtime = False
-start_time_string='2025/10/16 09:25'
-end_time_string='2025/10/16 18:45'
+start_time_string='2025/10/21 11:45'
+end_time_string='2025/10/21 17:10'
 
 
 #PROCESSES (PARSERS)

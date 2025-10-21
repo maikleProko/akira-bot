@@ -1,5 +1,5 @@
 from asyncio import sleep
-from datetime import timedelta
+from datetime import timedelta, datetime
 import numpy as np
 from collections import deque
 from sklearn.ensemble import RandomForestClassifier
@@ -79,24 +79,7 @@ class SmartLevelStrategy(MarketProcess):
         features = np.array(features).reshape(1, -1)
         return self.ml_model.predict_proba(features)[0][1]  # Prob of class 1 (rebound)
 
-    def process(self, start_time, end_time):
-        print('[SmartLevelStrategy] Analyzing...')
-        snapshot = self.orderbook.get_by_time(end_time)  # Assume get_by_time returns orderbook
-        if self.detect_spoofing(snapshot):
-            print("Spoofing detected! Skipping level calculation.")
-            return [{'price1': 0.0, 'price2': 0.0, 'persistence': 0.0}]
-
-        obi = self.calculate_obi(snapshot)
-        vwap = self.calculate_vwap()
-
-        level1 = self.orderbook_level_momentum_evaluator.evaluate_support(end_time)
-        level2 = self.orderbook_level_simple_range_evaluator.evaluate_support(end_time)
-        level3 = self.history_market_level_evaluator.evaluate_support()
-
-        # Step 1: Filter valid levels
-        levels = [level1, level2, level3]
-        valid_levels = [l for l in levels if l['price1'] > 0 and l['price2'] > 0]
-
+    def get_final_level(self, valid_levels):
         if not valid_levels:
             final_level = {'price1': 0.0, 'price2': 0.0, 'persistence': 0.0}
         else:
@@ -148,6 +131,28 @@ class SmartLevelStrategy(MarketProcess):
                         'persistence': persistences[best_idx]
                     }
 
+        return final_level
+
+
+    def process(self, start_time, end_time):
+        print('[SmartLevelStrategy] Analyzing...')
+        snapshot = self.orderbook.get_by_time(end_time)  # Assume get_by_time returns orderbook
+        if self.detect_spoofing(snapshot):
+            print("Spoofing detected! But continue.")
+
+        obi = self.calculate_obi(snapshot)
+        vwap = self.calculate_vwap()
+
+        level1 = self.orderbook_level_momentum_evaluator.evaluate_support(end_time)
+        level2 = self.orderbook_level_simple_range_evaluator.evaluate_support(end_time)
+        level3 = self.history_market_level_evaluator.evaluate_support()
+
+        # Step 1: Filter valid levels
+        levels = [level1, level2, level3]
+        valid_levels = [l for l in levels if l['price1'] > 0 and l['price2'] > 0]
+        final_level = self.get_final_level(valid_levels)
+
+
         # Fix the final level with time
         final_level_with_time = {'time': end_time, **final_level}
         self.historical_levels.append(final_level_with_time)
@@ -197,4 +202,9 @@ class SmartLevelStrategy(MarketProcess):
         pass
 
     def run_historical(self, start_time, current_time):
+        self.process(current_time - timedelta(hours=4), current_time)
+
+
+    def run_realtime(self):
+        current_time = datetime.now()
         self.process(current_time - timedelta(hours=4), current_time)
