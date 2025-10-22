@@ -308,7 +308,7 @@ class OblStrategy:
             passed = sum([cond_cluster, cond_spread, cond_liq, cond_flow, cond_momentum, cond_cooldown])
             if passed >= 5:
                 # формируем сигнал LONG
-                entry_price = best_ask  # либо mid или market; для сигнала возьмём текущую лучшую цену исполнения ask
+                entry_price = best_ask  # либо mid или machine_learning; для сигнала возьмём текущую лучшую цену исполнения ask
                 # стоп можем вычислить как lower_boundary - buffer
                 stop_price = lower_boundary - 1.0  # buffer 1 USD; tune as needed
                 take_price = entry_price + (entry_price - stop_price) * 1.5

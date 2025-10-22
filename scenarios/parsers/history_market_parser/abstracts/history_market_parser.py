@@ -13,6 +13,8 @@ class HistoryMarketParser(MarketProcess):
     """
     def __init__(self, platform_name: str, symbol1: str = 'BTC', symbol2: str = 'USDT', minutes: int = 1000):
         self.slash_symbol = symbol1 + '/' + symbol2
+        self.symbol1 = symbol1
+        self.symbol2 = symbol2
         self.minutes = minutes
         self.platform = platform_name
         self.df = None
