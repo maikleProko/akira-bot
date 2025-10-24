@@ -1,3 +1,5 @@
+from scenarios.parsers.arbitrage_parser.instances.binance_arbitrage_parser import BinanceArbitrageParser
+from scenarios.parsers.arbitrage_parser.instances.binance_smart_arbitrage_buyer import BinanceSmartArbitrageBuyer
 from scenarios.parsers.history_market_parser.instances.history_binance_parser import HistoryBinanceParser
 '''
 from scenarios.parsers.indicators.instances.atr_bounds_indicator import AtrBoundsIndicator
@@ -21,13 +23,13 @@ symbol2 = 'USDT'
 
 
 #FOR HISTORICAL TRADING
-realtime = False
+realtime = True
 start_time_string='2025/10/21 06:30'
 end_time_string='2025/10/22 15:55'
 
 
 #PROCESSES (PARSERS)
-history_market_parser = HistoryBinanceParser(symbol1, symbol2, 525600)
+history_market_parser = HistoryBinanceParser(symbol1, symbol2)
 '''
 orderbook_parser = OrderbookParser(BeautifulsoupCoinglassParser(symbol1, symbol2))
 nwe_bounds_indicator = NweBoundsIndicator(history_market_parser)
@@ -47,8 +49,9 @@ simple_corridor_strategy = SimpleCorridorStrategy(
     history_market_parser=history_market_parser,
 )
 
+arbitrage_parser = BinanceSmartArbitrageBuyer(2000)
+
 #MARKET PROCESSES
 MARKET_PROCESSES = [
-    history_market_parser,
-    simple_corridor_strategy
+    arbitrage_parser
 ]
