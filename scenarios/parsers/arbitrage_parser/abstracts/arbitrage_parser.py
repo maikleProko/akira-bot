@@ -9,7 +9,6 @@ class ArbitrageParser(MarketProcess):
         start = 1.0
         max_len = 4  # ищем циклы длины 3 и 4
 
-        print("Запрашиваю данные с Binance... (может занять пару секунд)")
         ops = self.find_arbitrage_cycles(fee_rate=fee, min_profit=min_profit, start_amount=start,
                                     max_cycles=200000, max_cycle_len=max_len)
 
@@ -17,25 +16,6 @@ class ArbitrageParser(MarketProcess):
             print("Арбитражных возможностей не найдено (по заданному порогу).")
         else:
             current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
-            with open('files/decisions/decisions_ArbitrageParser.txt', 'a', encoding='utf-8') as f:
-                f.write(f"Time: {current_time}\n")
-                for o in ops:
-                    f.write(f"Path: {' -> '.join(o['path'])}\n")
-                    f.write(f"Profit: {o['profit_perc']*100:.4f}%\n")
-                    f.write(f"Start Amount: {o['start_amount']}{o['start_asset']}\n")
-                    f.write(f"End Amount: {o['end_amount']:.8f}{o['start_asset']}\n")
-                    f.write("Calculation steps:\n")
-                    amt = o['start_amount']
-                    for t in o['trades']:
-                        frm, to, sym, dirc, new_amt, price = t
-                        if dirc == 'sell':
-                            f.write(f"Selling {amt:.8f} {frm} for {to} using pair {sym} at bid price {price:.8f} ({to} per {frm})\n")
-                            f.write(f"Amount received: {amt:.8f} * {price:.8f} * (1 - {fee}) = {new_amt:.8f} {to}\n")
-                        else:
-                            f.write(f"Buying {new_amt:.8f} {to} with {amt:.8f} {frm} using pair {sym} at ask price {price:.8f} ({frm} per {to})\n")
-                            f.write(f"Amount bought: ({amt:.8f} / {price:.8f}) * (1 - {fee}) = {new_amt:.8f} {to}\n")
-                        amt = new_amt
-                    f.write("----\n")
 
             for o in ops[:50]:
                 print("Путь:", " -> ".join(o['path']), f"Начало {o['start_amount']}{o['start_asset']} -> Конец {o['end_amount']:.8f}{o['start_asset']}", f"Прибыль {o['profit_perc']*100:.4f}%")

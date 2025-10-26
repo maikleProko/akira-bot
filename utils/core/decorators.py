@@ -42,6 +42,33 @@ def periodic(trigger='cron', **trigger_args):
     return decorator
 
 
+def fast_periodic():
+    """
+    Декоратор: превращает функцию в непрерывно выполняющуюся задачу без пауз.
+    Декорируемая функция должна принимать те же аргументы, что и вызов starter-а.
+    """
+    def decorator(func):
+        @wraps(func)
+        def starter(*args, **kwargs):
+            print(f'[{func.__name__}] Continuous runner started')
+            try:
+                while True:
+                    try:
+                        print(f'------------')
+                        print(f'------------')
+                        print(f'------------')
+                        print(f'------------')
+                        print(f'[run] TICK RUN AT {datetime.now()}')
+                        func(*args, **kwargs)
+                    except Exception as e:
+                        # логируем ошибку, но не останавливаем цикл
+                        print(f'[{func.__name__}] Error in job: {e}', flush=True)
+            except (KeyboardInterrupt, SystemExit):
+                print(f'[{func.__name__}] Continuous runner stopped by user.')
+        return starter
+    return decorator
+
+
 def every_second(interval=1.0, daemon=True):
     """
     Декоратор: при вызове декорированной функции начинается фоновый цикл,

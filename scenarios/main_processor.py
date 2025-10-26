@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from scenarios.constants import *
-from utils.core.decorators import periodic
+from utils.core.decorators import periodic, fast_periodic
 
 
 class MarketProcessor(ABC):
@@ -26,7 +26,7 @@ class RealtimeProcessor(MarketProcessor):
         print('Preparing realtime...')
         self._prepare_market_processes()
 
-    @periodic()
+    @fast_periodic()
     def run(self):
         """Запуск в реальном времени"""
         self._execute_market_processes()
@@ -102,6 +102,7 @@ class MainProcessor:
 
     def _initialize_services(self, start_time_string, end_time_string):
         """Инициализация нужного процессора в зависимости от режима"""
+
         if self.realtime:
             self.processor = RealtimeProcessor()
             print("MainProcessor: Инициализирован RealtimeProcessor")

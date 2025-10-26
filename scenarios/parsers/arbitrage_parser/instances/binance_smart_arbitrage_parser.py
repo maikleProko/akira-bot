@@ -21,6 +21,7 @@ class BinanceSmartArbitrageParser(ArbitrageParser):
         self.max_cycle_len = 4
 
     def fetch_exchange_info(self):
+        print("Запрашиваю данные с Binance... (может занять пару секунд)")
         url = self.BINANCE_API + "/api/v3/exchangeInfo"
         r = requests.get(url, timeout=10)
         r.raise_for_status()
