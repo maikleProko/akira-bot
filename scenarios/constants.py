@@ -1,4 +1,5 @@
 from scenarios.parsers.arbitrage_parser.instances.careful_kucoin_arbitrage_parser import CarefulKuCoinArbitrageParser
+from scenarios.parsers.arbitrage_parser.instances.careful_okx_arbitrage_parser import CarefulOKXArbitrageParser
 from scenarios.parsers.arbitrage_parser.instances.kucoin_arbitrage_parser import KuCoinArbitrageParser
 from scenarios.parsers.history_market_parser.instances.history_binance_parser import HistoryBinanceParser
 
@@ -15,7 +16,13 @@ end_time_string='2025/10/22 15:55'
 
 #PROCESSES (STRATEGIES)
 
-arbitrage_parser = CarefulKuCoinArbitrageParser(deposit=5, api_key='', api_secret='', api_passphrase='kxmb263ru')
+arbitrage_parser = CarefulOKXArbitrageParser(
+    production=False,
+    deposit=15,
+    api_key='',
+    api_secret='',
+    api_passphrase='kxmb263ru'
+)
 
 #MARKET PROCESSES
 MARKET_PROCESSES = [

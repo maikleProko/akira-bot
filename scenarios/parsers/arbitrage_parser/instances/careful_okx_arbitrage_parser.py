@@ -6,11 +6,11 @@ import json
 import math
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from kucoin.client import Market, Trade, User
+from okx import MarketData as okxMarket, Trade as okxTrade, Account as okxAccount
 
 
-class CarefulKuCoinArbitrageParser(ArbitrageParser):
-    KUCOIN_API = "https://api.kucoin.com"
+class CarefulOKXArbitrageParser(ArbitrageParser):
+    OKX_API = "https://www.okx.com"
 
     def __init__(self, deposit=1.0, production=True, api_key=None, api_secret=None, api_passphrase=None):
         self.deposit = deposit
@@ -19,6 +19,7 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
         self.api_secret = api_secret
         self.api_passphrase = api_passphrase
         self.consecutive_same = 0
+        self.fee_rate = 0.001
         self.possible = True
         self.prev_paths = None
         self.market_client = None
@@ -32,23 +33,25 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
                 self.production = False
             else:
                 try:
-                    self.market_client = Market(key=api_key, secret=api_secret, passphrase=api_passphrase)
-                    self.trade_client = Trade(key=api_key, secret=api_secret, passphrase=api_passphrase)
-                    self.user_client = User(key=api_key, secret=api_secret, passphrase=api_passphrase)
-                    accounts = self.user_client.get_account_list()
-                    if accounts is None:
-                        raise Exception("Тестовый запрос API для аккаунтов вернул None")
-                    self.log_message(f"Список аккаунтов: {accounts}")
-                    ticker_response = requests.get(f"{self.KUCOIN_API}/api/v1/market/orderbook/level1?symbol=ETH-USDT",
-                                                   timeout=10)
+                    self.market_client = okxMarket.MarketAPI(key=api_key, secret=api_secret, passphrase=api_passphrase,
+                                                             flag='0')
+                    self.trade_client = okxTrade.TradeAPI(key=api_key, secret=api_secret, passphrase=api_passphrase,
+                                                          flag='0')
+                    self.user_client = okxAccount.AccountAPI(key=api_key, secret=api_secret, passphrase=api_passphrase,
+                                                             flag='0')
+                    accounts = self.user_client.get_balance()
+                    if not accounts['data']:
+                        raise Exception("Тестовый запрос API для балансов вернул пустой список")
+                    self.log_message(f"Список балансов: {accounts}")
+                    ticker_response = requests.get(f"{self.OKX_API}/api/v5/market/ticker?instId=ETH-USDT", timeout=10)
                     ticker_response.raise_for_status()
-                    ticker = ticker_response.json()['data']
-                    if not ticker or 'bestBid' not in ticker or 'bestAsk' not in ticker:
+                    ticker = ticker_response.json()['data'][0]
+                    if not ticker or 'bidPx' not in ticker or 'askPx' not in ticker:
                         raise Exception("Недопустимый ответ тикера")
                     self.log_message(f"Тикер для ETH-USDT: {ticker}")
-                    self.log_message("Клиенты KuCoin API успешно инициализированы")
+                    self.log_message("Клиенты OKX API успешно инициализированы")
                 except Exception as e:
-                    self.log_message(f"Не удалось инициализировать клиенты KuCoin API: {str(e)}")
+                    self.log_message(f"Не удалось инициализировать клиенты OKX API: {str(e)}")
                     self.production = False
 
     def log_message(self, message):
@@ -59,8 +62,8 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
             f.write(f"{timestamp}: {message}\n")
 
     def fetch_symbols(self):
-        print("Запрашиваю данные с KuCoin... (может занять пару секунд)")
-        url = self.KUCOIN_API + "/api/v2/symbols"
+        print("Запрашиваю данные с OKX... (может занять пару секунд)")
+        url = self.OKX_API + "/api/v5/public/instruments?instType=SPOT"
         try:
             r = requests.get(url, timeout=10)
             r.raise_for_status()
@@ -77,54 +80,55 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
           - price_map: dict symbol -> {'bid': float, 'ask': float, 'base':..., 'quote':..., 'base_min_size':..., 'quote_min_size':..., 'base_increment':..., 'quote_increment':...}
         """
         info = self.fetch_symbols()
-
         symbol_map = {}
         out_edges = defaultdict(set)
         symbols = []
-
         for s in info:
-            symbol = s['symbol']
-            if not s.get('enableTrading', False):
+            symbol = s['instId']
+            if s['state'] != 'live':
                 continue
-            base = s['baseCurrency']
-            quote = s['quoteCurrency']
+            base = s['baseCcy']
+            quote = s['quoteCcy']
             # Пропускаем пары с игнорируемыми активами
             if base in self.ignore or quote in self.ignore:
                 continue
-            base_min_size = float(s['baseMinSize'])
-            quote_min_size = float(s['quoteMinSize'])
-            base_increment = float(s['baseIncrement'])
-            quote_increment = float(s['quoteIncrement'])
-
+            base_min_size = float(s['minSz'])
+            base_increment = float(s['lotSz'])
+            quote_increment = float(s['tickSz'])
+            # Примерные quote_min_size на основе типичных значений для OKX
+            if quote == 'USDT' or quote == 'USDC':
+                quote_min_size = 5.0
+            elif quote == 'BTC':
+                quote_min_size = 0.0001
+            elif quote == 'ETH':
+                quote_min_size = 0.001
+            else:
+                quote_min_size = 0.01  # Default для других
             # Фильтр для пар с нереалистичными ограничениями
             if base_increment >= 1.0 or base_min_size >= 1.0:
                 continue
-
             symbol_map[(base, quote)] = symbol
             out_edges[base].add(quote)
             out_edges[quote].add(base)
             symbols.append((symbol, base, quote, base_min_size, quote_min_size, base_increment, quote_increment))
-
         # Получаем все цены одним запросом
         price_map = {}
         try:
             if self.production and self.market_client:
-                all_tickers = self.market_client.get_all_tickers()
-                tickers = all_tickers['ticker']
+                all_tickers = self.market_client.get_tickers(instType='SPOT')
+                tickers = all_tickers['data']
             else:
-                response = requests.get(f"{self.KUCOIN_API}/api/v1/market/allTickers", timeout=10)
+                response = requests.get(f"{self.OKX_API}/api/v5/market/tickers?instType=SPOT", timeout=10)
                 response.raise_for_status()
-                tickers = response.json()['data']['ticker']
-
-            ticker_map = {t['symbol']: t for t in tickers}
-
+                tickers = response.json()['data']
+            ticker_map = {t['instId']: t for t in tickers}
             for sym, base, quote, base_min_size, quote_min_size, base_increment, quote_increment in symbols:
                 ticker = ticker_map.get(sym)
                 if not ticker:
                     continue
                 try:
-                    bid = float(ticker['sell'])  # bestBid
-                    ask = float(ticker['buy'])  # bestAsk
+                    bid = float(ticker['bidPx'])
+                    ask = float(ticker['askPx'])
                     if bid <= 0 or ask <= 0:
                         continue
                     price_map[sym] = {
@@ -141,7 +145,6 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
                     self.log_message(f"Ошибка при обработке цены для {sym}: {str(e)}")
         except Exception as e:
             self.log_message(f"Ошибка при получении всех тикеров: {str(e)}")
-
         return out_edges, symbol_map, price_map
 
     def check_balance(self, asset):
@@ -149,15 +152,11 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
         if not self.production:
             return float('inf')  # В режиме симуляции считаем баланс бесконечным
         try:
-            accounts = self.user_client.get_account_list()
-            if accounts is None:
-                self.log_message(f"Ошибка при проверке баланса для {asset}: API вернул None")
-                return 0.0
-            for account in accounts:
-                if account['currency'] == asset and account['type'] == 'trade':
-                    available = float(account['available'])
-                    self.log_message(f"Баланс {asset}: {available:.8f}")
-                    return available
+            balance = self.user_client.get_balance(ccy=asset)
+            if balance and balance['data']:
+                available = float(balance['data'][0]['availBal'])
+                self.log_message(f"Баланс {asset}: {available:.8f}")
+                return available
             self.log_message(f"Баланс {asset}: 0.0 (аккаунт не найден)")
             return 0.0
         except Exception as e:
@@ -168,12 +167,12 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
         """Получает текущие цены (bid/ask) для символа через REST API"""
         start_time = time.time()
         try:
-            response = requests.get(f"{self.KUCOIN_API}/api/v1/market/orderbook/level1?symbol={symbol}", timeout=5)
+            response = requests.get(f"{self.OKX_API}/api/v5/market/ticker?instId={symbol}", timeout=5)
             response.raise_for_status()
-            data = response.json()['data']
-            if not data or 'bestBid' not in data or 'bestAsk' not in data:
+            data = response.json()['data'][0]
+            if not data or 'bidPx' not in data or 'askPx' not in data:
                 return None
-            return {'sell': float(data['bestBid']), 'buy': float(data['bestAsk'])}
+            return {'sell': float(data['bidPx']), 'buy': float(data['askPx'])}
         except Exception as e:
             return None
 
@@ -183,7 +182,6 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
         if price_map and symbol not in price_map:
             self.log_message(f"Ошибка: Символ {symbol} не найден в price_map")
             return None, False
-
         # Get symbol constraints and current price
         if price_map:
             constraints = price_map.get(symbol, {})
@@ -196,7 +194,6 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
             base_min_size = quote_min_size = 0.0
             base_increment = quote_increment = 0.00000001
             ask_price = expected_price
-
         if not self.production:
             # Simulate trade
             ticker = self.fetch_ticker_price(symbol) if self.production else {'buy': expected_price,
@@ -212,7 +209,6 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
                 f"Симуляция транзакции {direction} {amount:.8f} {from_asset} -> {to_asset} при цене {current_price:.8f}")
             self.log_message(f"Ожидаемое количество: {new_amount:.8f} {to_asset}")
             return new_amount, True
-
         # Check balance and adjust amount if necessary
         available = self.check_balance(from_asset)
         if available < amount:
@@ -222,7 +218,6 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
             if amount == 0:
                 self.log_message(f"Баланс {from_asset} равен нулю, транзакция невозможна.")
                 return None, False
-
         start_time = time.time()
         try:
             # Adjust amount based on direction and constraints
@@ -240,6 +235,13 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
                     return None, False
                 self.log_message(
                     f"Скорректированная сумма для продажи: {adjusted_amount:.8f} {from_asset} (base_increment: {base_increment:.8f})")
+                order_params = {
+                    'instId': symbol,
+                    'tdMode': 'cash',
+                    'side': 'sell',
+                    'ordType': 'market',
+                    'sz': str(adjusted_amount)
+                }
             else:
                 # For buy orders, calculate max base amount affordable within balance and constraints
                 ticker = self.fetch_ticker_price(symbol)
@@ -277,29 +279,30 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
                     return None, False
                 self.log_message(
                     f"Скорректированная сумма для покупки: {adjusted_amount:.8f} {from_asset} (quote_increment: {quote_increment:.8f}, expected {adjusted_base_amount:.8f} {to_asset} at price {current_ask_price:.8f})")
-
+                order_params = {
+                    'instId': symbol,
+                    'tdMode': 'cash',
+                    'side': 'buy',
+                    'ordType': 'market',
+                    'quoteSz': str(adjusted_amount)
+                }
             # Place market order
-            side = 'sell' if direction == 'sell' else 'buy'
-            order = self.trade_client.create_market_order(
-                symbol=symbol,
-                side=side,
-                size=adjusted_amount if direction == 'sell' else None,
-                funds=adjusted_amount if direction == 'buy' else None
-            )
-            order_id = order['orderId']
+            order = self.trade_client.place_order(**order_params)
+            order_id = order['data'][0]['ordId']
             self.log_message(
                 f"Размещен ордер {order_id} для {direction} {adjusted_amount:.8f} {from_asset} -> {to_asset}")
-
             # Monitor order status
             while time.time() - start_time < 5:
-                order_details = self.trade_client.get_order_details(order_id)
-                if order_details is None:
-                    self.log_message(f"Ошибка: get_order_details для {order_id} вернул None")
+                order_details = self.trade_client.get_order(instId=symbol, ordId=order_id)
+                if order_details is None or not order_details['data']:
+                    self.log_message(f"Ошибка: get_order для {order_id} вернул None")
                     return None, False
-                if not order_details['isActive']:
+                details = order_details['data'][0]
+                if details['state'] == 'filled':
                     execution_time = time.time() - start_time
-                    filled_amount = float(order_details['dealSize'])
-                    dealt_funds = float(order_details['dealFunds'])
+                    filled_amount = float(details['accFillSz'])
+                    avg_price = float(details['avgPx'])
+                    dealt_funds = filled_amount * avg_price
                     actual_price = dealt_funds / filled_amount if direction == 'sell' else filled_amount / dealt_funds
                     actual_amount = dealt_funds * (1 - fee_rate) if direction == 'sell' else filled_amount * (
                                 1 - fee_rate)
@@ -308,47 +311,39 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
                     self.log_message(
                         f"Ожидаемая цена: {expected_price:.8f}, Фактическая средняя цена: {actual_price:.8f}")
                     self.log_message(
-                        f"Ожидаемое количество: {(amount * expected_price * (1 - fee_rate) if direction == 'sell' else (amount / expected_price) * (1 - fee_rate)):.8f} {to_asset}, "
-                        f"Фактическое количество: {actual_amount:.8f} {to_asset}")
+                        f"Ожидаемое количество: {(amount * expected_price * (1 - fee_rate) if direction == 'sell' else (amount / expected_price) * (1 - fee_rate)):.8f} {to_asset}, Фактическое количество: {actual_amount:.8f} {to_asset}")
                     return actual_amount, True
                 time.sleep(0.1)
-
             self.log_message(
                 f"Транзакция {direction} {adjusted_amount:.8f} {from_asset} -> {to_asset} не завершилась за 5 секунд, отменяется.")
+            self.trade_client.cancel_order(instId=symbol, ordId=order_id)
             return None, False
         except Exception as e:
             self.log_message(
                 f"Ошибка при выполнении транзакции {direction} {amount:.8f} {from_asset} -> {to_asset}: {str(e)}")
             self.log_message(
-                f"Ограничения для {symbol}: base_min_size={base_min_size:.8f}, quote_min_size={quote_min_size:.8f}, "
-                f"base_increment={base_increment:.8f}, quote_increment={quote_increment:.8f}")
+                f"Ограничения для {symbol}: base_min_size={base_min_size:.8f}, quote_min_size={quote_min_size:.8f}, base_increment={base_increment:.8f}, quote_increment={quote_increment:.8f}")
             return None, False
 
-    def find_arbitrage_cycles(self, fee_rate=0.001, min_profit=0.0001, start_amount=1.0,
-                              max_cycles=200000, max_cycle_len=4):
+    def find_arbitrage_cycles(self, fee_rate=0.001, min_profit=0.0001, start_amount=1.0, max_cycles=200000,
+                              max_cycle_len=4):
         """
         Ищет циклы длины 3..max_cycle_len.
         """
         if max_cycle_len < 3:
             raise ValueError("max_cycle_len должен быть >= 3")
-
         out_edges, symbol_map, price_map = self.build_graph_and_prices()
         opportunities = []
         checked = 0
         seen_cycles = set()
-
         assets = list(out_edges.keys())
-
         stop_flag = False
 
         def dfs(start, current_path):
             nonlocal checked, stop_flag
-
             if stop_flag:
                 return
-
             current = current_path[-1]
-
             if len(current_path) >= 3 and start in out_edges[current]:
                 cycle_nodes = current_path[:]
                 norm = self.normalize_cycle(cycle_nodes)
@@ -411,15 +406,12 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
                                 'profit_perc': profit_perc,
                                 'trades': trades
                             })
-
                 checked += 1
                 if checked > max_cycles:
                     stop_flag = True
                     return
-
             if len(current_path) >= max_cycle_len:
                 return
-
             for nb in out_edges[current]:
                 if stop_flag:
                     return
@@ -441,7 +433,6 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
             if len(out_edges[a]) < 1:
                 continue
             dfs(a, [a])
-
         opportunities.sort(key=lambda x: x['profit_perc'], reverse=True)
         return opportunities
 
@@ -465,7 +456,6 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
             if new_amount <= 0:
                 return None, None, None, None
             return new_amount, sym_direct, 'sell', bid
-
         sym_rev = symbol_map.get((to_asset, from_asset))
         if sym_rev:
             p = price_map.get(sym_rev)
@@ -483,7 +473,6 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
             if new_amount <= 0:
                 return None, None, None, None
             return new_amount, sym_rev, 'buy', ask
-
         return None, None, None, None
 
     def normalize_cycle(self, nodes):
@@ -510,10 +499,8 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
         min_profit = 0.000001  # 0.1% порог
         start = 1.0
         max_len = 5  # ищем циклы длины 3 и 4
-
         ops = self.find_arbitrage_cycles(fee_rate=fee, min_profit=min_profit, start_amount=start,
                                          max_cycles=200000, max_cycle_len=max_len)
-
         # Находим наиболее прибыльный путь
         if strict:
             valid_ops = [o for o in ops if
@@ -524,37 +511,30 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
         if valid_ops:
             best_op = max(valid_ops, key=lambda x: x['profit_perc'])
             current_best_path = tuple(best_op['path'])
-
         # Проверяем, совпадает ли лучший путь с предыдущим
         if current_best_path and current_best_path == self.prev_paths:
             self.consecutive_same += 1
         else:
             self.consecutive_same = 1
         self.prev_paths = current_best_path
-
         # Стандартное поведение (логирование в консоль)
         if not ops:
             self.log_message("Арбитражных возможностей не найдено (по заданному порогу).")
         else:
-            if valid_ops and best_op:
-                print("Путь:", " -> ".join(best_op['path']),
-                      f"Начало {best_op['start_amount']}{best_op['start_asset']} -> Конец {best_op['end_amount']:.8f}{best_op['start_asset']}",
-                      f"Прибыль {best_op['profit_perc'] * 100:.4f}%")
+            for o in ops[:50]:
+                print("Путь:", " -> ".join(o['path']), f"Начало {o['start_amount']}{o['start_asset']} -> Конец {o['end_amount']:.8f}{o['start_asset']}", f"Прибыль {o['profit_perc']*100:.4f}%")
                 print("Calculation steps:")
-                amt = best_op['start_amount']
-                for t in best_op['trades']:
+                amt = o['start_amount']
+                for t in o['trades']:
                     frm, to, sym, dirc, new_amt, price = t
                     if dirc == 'sell':
-                        print(
-                            f"  Selling {amt:.8f} {frm} for {to} using pair {sym} at bid price {price:.8f} ({to} per {frm})")
-                        print(f"  Amount received: {amt:.8f} * {price:.8f} * (1 - {fee}) = {new_amt:.8f} {to}")
+                        print(f"  Selling {amt:.8f} {frm} for {to} using pair {sym} at bid price {price:.8f} ({to} per {frm})")
+                        print(f"  Amount received: {amt:.8f} * {price:.8f} * (1 - {self.fee_rate}) = {new_amt:.8f} {to}")
                     else:
-                        print(
-                            f"  Buying {new_amt:.8f} {to} with {amt:.8f} {frm} using pair {sym} at ask price {price:.8f} ({frm} per {to})")
-                        print(f"  Amount bought: ({amt:.8f} / {price:.8f}) * (1 - {fee}) = {new_amt:.8f} {to}")
+                        print(f"  Buying {new_amt:.8f} {to} with {amt:.8f} {frm} using pair {sym} at ask price {price:.8f} ({frm} per {to})")
+                        print(f"  Amount bought: ({amt:.8f} / {price:.8f}) * (1 - {self.fee_rate}) = {new_amt:.8f} {to}")
                     amt = new_amt
                 print("----")
-
         # Если 5 раз подряд один и тот же лучший путь, входим в режим активного трейдера
         self.log_message(f"CHECKING: consecutive_same = {self.consecutive_same}")
         if self.consecutive_same >= 2 and valid_ops and self.possible:
@@ -567,7 +547,6 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
             trades = []
             valid = True
             out_edges, symbol_map, price_map = self.build_graph_and_prices()  # Перезагружаем свежие цены
-
             # Проверяем баланс начального актива
             start_asset = best_op['start_asset']
             if self.production:
@@ -579,34 +558,31 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
                     if amt == 0:
                         self.log_message(f"Баланс {start_asset} равен нулю, арбитраж невозможен.")
                         valid = False
-
             # Проверка прибыльности цикла с актуальными ценами
             if valid:
                 self.log_message(f"Проверка прибыльности цикла: {' -> '.join(best_op['path'])}")
                 cycle_amt = amt
                 is_profitable = True
                 simulated_trades = []
-                # Параллельно запрашиваем цены для всех пар в пути
-                syms = [symbol_map.get((best_op['path'][i], best_op['path'][i + 1])) or symbol_map.get(
-                    (best_op['path'][i + 1], best_op['path'][i])) for i in range(len(best_op['path']) - 1)]
-                current_prices = {}
-                with ThreadPoolExecutor(max_workers=30) as executor:
-                    future_to_sym = {executor.submit(self.fetch_ticker_price, sym): sym for sym in syms if sym}
-                    for future in as_completed(future_to_sym):
-                        sym = future_to_sym[future]
-                        try:
-                            current_ticker = future.result()
-                            if current_ticker:
-                                current_prices[sym] = current_ticker
-                        except Exception as e:
-                            self.log_message(f"Ошибка при параллельном получении цены для {sym}: {str(e)}")
-                            valid = False
-                            break
-
+                # Получаем все свежие цены одним запросом вместо параллельных
+                try:
+                    if self.production and self.market_client:
+                        all_tickers = self.market_client.get_tickers(instType='SPOT')
+                        tickers = all_tickers['data']
+                    else:
+                        response = requests.get(f"{self.OKX_API}/api/v5/market/tickers?instType=SPOT", timeout=10)
+                        response.raise_for_status()
+                        tickers = response.json()['data']
+                    current_prices = {t['instId']: {'sell': float(t['bidPx']), 'buy': float(t['askPx'])} for t in
+                                      tickers if 'bidPx' in t and 'askPx' in t}
+                except Exception as e:
+                    self.log_message(f"Ошибка при получении всех тикеров для проверки: {str(e)}")
+                    valid = False
                 if not valid:
                     self.log_message("Арбитраж не выполнен из-за ошибок в получении цен")
                     return
-
+                syms = [symbol_map.get((best_op['path'][i], best_op['path'][i + 1])) or symbol_map.get(
+                    (best_op['path'][i + 1], best_op['path'][i])) for i in range(len(best_op['path']) - 1)]
                 for i in range(len(best_op['path']) - 1):
                     frm = best_op['path'][i]
                     to = best_op['path'][i + 1]
@@ -616,14 +592,13 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
                             f"Симуляция: Транзакция {frm} -> {to} невозможна из-за ограничений минимального размера или точности")
                         valid = False
                         break
-                    # Получаем актуальную цену из параллельного запроса
+                    # Получаем актуальную цену из общего запроса
                     current_ticker = current_prices.get(sym)
-                    if current_ticker is None or 'buy' not in current_ticker or 'sell' not in current_ticker:
+                    if current_ticker is None:
                         self.log_message(f"Ошибка: Недопустимый ответ API для {sym}, использую price_map")
                         current_price = price_map[sym]['bid'] if direction == 'sell' else price_map[sym]['ask']
                     else:
-                        current_price = float(current_ticker['sell']) if direction == 'sell' else float(
-                            current_ticker['buy'])
+                        current_price = current_ticker['sell'] if direction == 'sell' else current_ticker['buy']
                     # Проверяем ограничения
                     constraints = price_map.get(sym, {})
                     base_min_size = constraints.get('base_min_size', 0.0)
@@ -666,7 +641,6 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
                             f"Симуляция: Транзакция {frm} -> {to} убыточна: ожидается {cycle_amt:.8f} {to}, текущий объем {amt:.8f} {frm}")
                         is_profitable = False
                     amt = cycle_amt
-
                 # Проверяем итоговую прибыль цикла
                 profit_perc = (cycle_amt / initial_deposit - 1) * 100
                 if not is_profitable or profit_perc <= min_profit * 100:
@@ -681,17 +655,16 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
                         frm, to, sym, dirc, new_amt, price = t
                         if dirc == 'sell':
                             self.log_message(
-                                f"  Selling {step_amt:.8f} {frm} for {to} using pair {sym} at price {price:.8f} ({to} per {frm})")
+                                f" Selling {step_amt:.8f} {frm} for {to} using pair {sym} at price {price:.8f} ({to} per {frm})")
                             self.log_message(
-                                f"  Amount received: {step_amt:.8f} * {price:.8f} * (1 - {fee}) = {new_amt:.8f} {to}")
+                                f" Amount received: {step_amt:.8f} * {price:.8f} * (1 - {fee}) = {new_amt:.8f} {to}")
                         else:
                             self.log_message(
-                                f"  Buying {new_amt:.8f} {to} with {step_amt:.8f} {frm} using pair {sym} at price {price:.8f} ({frm} per {to})")
+                                f" Buying {new_amt:.8f} {to} with {step_amt:.8f} {frm} using pair {sym} at price {price:.8f} ({frm} per {to})")
                             self.log_message(
-                                f"  Amount bought: ({step_amt:.8f} / {price:.8f}) * (1 - {fee}) = {new_amt:.8f} {to}")
+                                f" Amount bought: ({step_amt:.8f} / {price:.8f}) * (1 - {fee}) = {new_amt:.8f} {to}")
                         step_amt = new_amt
                     self.log_message("----")
-
             # Выполняем цикл, если он прибыльный
             if valid:
                 amt = initial_deposit
@@ -704,7 +677,6 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
                             f"Транзакция {frm} -> {to} невозможна из-за ограничений минимального размера или точности")
                         valid = False
                         break
-
                     self.log_message(f"Путь: {' -> '.join(best_op['path'])}")
                     self.log_message(
                         f"Начало {best_op['start_amount']}{best_op['start_asset']} -> Конец {best_op['end_amount']:.8f}{best_op['start_asset']}")
@@ -715,17 +687,16 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
                         frm_t, to_t, sym_t, dirc, new_amt_t, price_t = t
                         if dirc == 'sell':
                             self.log_message(
-                                f"  Selling {step_amt:.8f} {frm_t} for {to_t} using pair {sym_t} at bid price {price_t:.8f} ({to_t} per {frm_t})")
+                                f" Selling {step_amt:.8f} {frm_t} for {to_t} using pair {sym_t} at bid price {price_t:.8f} ({to_t} per {frm_t})")
                             self.log_message(
-                                f"  Amount received: {step_amt:.8f} * {price_t:.8f} * (1 - {fee}) = {new_amt_t:.8f} {to_t}")
+                                f" Amount received: {step_amt:.8f} * {price_t:.8f} * (1 - {fee}) = {new_amt_t:.8f} {to_t}")
                         else:
                             self.log_message(
-                                f"  Buying {new_amt_t:.8f} {to_t} with {step_amt:.8f} {frm_t} using pair {sym_t} at ask price {price_t:.8f} ({frm_t} per {to_t})")
+                                f" Buying {new_amt_t:.8f} {to_t} with {step_amt:.8f} {frm_t} using pair {sym_t} at ask price {price_t:.8f} ({frm_t} per {to_t})")
                             self.log_message(
-                                f"  Amount bought: ({step_amt:.8f} / {price_t:.8f}) * (1 - {fee}) = {new_amt_t:.8f} {to_t}")
+                                f" Amount bought: ({step_amt:.8f} / {price_t:.8f}) * (1 - {fee}) = {new_amt_t:.8f} {to_t}")
                         step_amt = new_amt_t
                     self.log_message("----")
-
                     # Проверяем прибыльность перед выполнением
                     current_ticker = self.fetch_ticker_price(sym) if self.production else {'buy': price_map[sym]['ask'],
                                                                                            'sell': price_map[sym][
@@ -739,12 +710,11 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
                             current_ticker['buy'])
                     expected_new_amt = amt * current_price * (1 - fee) if direction == 'sell' else (
                                                                                                            amt / current_price) * (
-                                                                                                           1 - fee)
+                                                                                                               1 - fee)
                     if expected_new_amt < amt:
                         self.log_message(
                             f"Транзакция {frm} -> {to} убыточна: ожидается {expected_new_amt:.8f} {to}, текущий объем {amt:.8f} {frm}")
                         is_profitable = False
-
                     if self.production:
                         # Проверяем баланс текущего актива
                         available = self.check_balance(frm)
@@ -764,7 +734,6 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
                                     f"Транзакция {frm} -> {to} невозможна с доступным балансом {amt:.8f} из-за ограничений минимального размера или точности")
                                 valid = False
                                 break
-
                         # Выполняем реальную сделку
                         actual_amount, success = self.execute_trade(frm, to, amt, sym, direction, price, fee, price_map)
                         if not success:
@@ -774,11 +743,9 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
                     else:
                         # Симуляция
                         new_amt = expected_new_amt
-
                     trades.append((frm, to, sym, direction, new_amt, current_price))
                     amt = new_amt
                     time.sleep(0.1)  # Avoid rate limits
-
             if valid:
                 # Сохраняем результаты
                 current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
@@ -811,6 +778,5 @@ class CarefulKuCoinArbitrageParser(ArbitrageParser):
                 self.deposit = amt
             else:
                 self.log_message("Арбитраж не выполнен из-за ошибок в транзакциях или убыточности цикла")
-
             # Сбрасываем счетчик после попытки
             self.consecutive_same = 0
