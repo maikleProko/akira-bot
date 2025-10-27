@@ -15,7 +15,7 @@ end_time_string='2025/10/22 15:55'
 
 #PROCESSES (STRATEGIES)
 
-arbitrage_parser = CarefulKuCoinArbitrageParser()
+arbitrage_parser = CarefulKuCoinArbitrageParser(deposit=5, api_key='', api_secret='', api_passphrase='kxmb263ru')
 
 #MARKET PROCESSES
 MARKET_PROCESSES = [
