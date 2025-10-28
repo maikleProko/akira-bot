@@ -18,7 +18,7 @@ end_time_string='2025/10/22 15:55'
 
 arbitrage_parser = CarefulOKXArbitrageParser(
     production=False,
-    deposit=15,
+    deposit=1500,
     api_key='',
     api_secret='',
     api_passphrase='kxmb263ru'
