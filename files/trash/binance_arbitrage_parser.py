@@ -1,6 +1,6 @@
 from collections import defaultdict
 import requests
-from scenarios.parsers.arbitrage_parser.abstracts.arbitrage_parser import ArbitrageParser
+from files.trash.arbitrage_parser import ArbitrageParser
 
 
 class BinanceArbitrageParser(ArbitrageParser):

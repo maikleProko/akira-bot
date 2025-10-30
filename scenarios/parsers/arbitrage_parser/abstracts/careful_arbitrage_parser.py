@@ -1,52 +1,28 @@
 from collections import defaultdict
-import requests
-from scenarios.parsers.arbitrage_parser.abstracts.arbitrage_parser import ArbitrageParser
 from datetime import datetime
 import json
 import math
 import time
-from collections import deque
-from okx import MarketData as okxMarket, Trade as okxTrade, Account as okxAccount
+from files.trash.arbitrage_parser import ArbitrageParser as MarketProcess
 
-
-class CarefulOKXArbitrageParser(ArbitrageParser):
-    OKX_API = "https://www.okx.com"
-
-    def init_clients(self, api_key, api_secret, api_passphrase):
-        self.market_client = okxMarket.MarketAPI(api_key=api_key, api_secret_key=api_secret, passphrase=api_passphrase, flag='0')
-        self.trade_client = okxTrade.TradeAPI(api_key=api_key, api_secret_key=api_secret, passphrase=api_passphrase, flag='0')
-        self.user_client = okxAccount.AccountAPI(api_key=api_key, api_secret_key=api_secret, passphrase=api_passphrase, flag='0')
-
-    def test_clients(self):
-        accounts = self.user_client.get_account_balance()
-        if not accounts['data']:
-            raise Exception("Тестовый запрос API для балансов вернул пустой список")
-        self.log_message(f"Список балансов: {accounts}")
-
-    def test_ticker(self):
-        ticker_response = requests.get(f"{self.OKX_API}/api/v5/market/ticker?instId=ETH-USDT", timeout=10)
-        ticker_response.raise_for_status()
-        ticker = ticker_response.json()['data'][0]
-        if not ticker or 'bidPx' not in ticker or 'askPx' not in ticker:
-            raise Exception("Недопустимый ответ тикера")
-        self.log_message(f"Тикер для ETH-USDT: {ticker}")
-
-    def __init__(self, deposit=1.0, production=True, api_key=None, api_secret=None, api_passphrase=None):
+class CarefulArbitrageParser(MarketProcess):
+    def __init__(self, deposit=1.0, production=True, api_key=None, api_secret=None, api_passphrase=None, strict=False, strict_coin='USDT'):
         self.deposit = deposit
         self.production = production
         self.api_key = api_key
         self.api_secret = api_secret
         self.api_passphrase = api_passphrase
-        self.consecutive_same = 0
-        self.fee_rate = 0.000
+        self.consecutive_same = []
+        self.fee_rate = 0.001
         self.possible = True
         self.prev_paths = None
         self.market_client = None
         self.trade_client = None
         self.user_client = None
-        self.ignore = ['A', 'BULLA']
+        self.ignore = []
         self.check_liquidity = False
-        self.path_consecutive = []
+        self.strict = strict
+        self.strict_coin = strict_coin
         if self.production:
             if not api_key or not api_secret:
                 self.log_message("Ошибка: API-ключ и секрет необходимы для продакшен-режима")
@@ -56,10 +32,19 @@ class CarefulOKXArbitrageParser(ArbitrageParser):
                     self.init_clients(api_key, api_secret, api_passphrase)
                     self.test_clients()
                     self.test_ticker()
-                    self.log_message("Клиенты OKX API успешно инициализированы")
+                    self.log_message("Клиенты API успешно инициализированы")
                 except Exception as e:
-                    self.log_message(f"Не удалось инициализировать клиенты OKX API: {str(e)}")
+                    self.log_message(f"Не удалось инициализировать клиенты API: {str(e)}")
                     self.production = False
+
+    def init_clients(self, api_key, api_secret, api_passphrase):
+        raise NotImplementedError
+
+    def test_clients(self):
+        raise NotImplementedError
+
+    def test_ticker(self):
+        raise NotImplementedError
 
     def log_message(self, message):
         timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
@@ -68,15 +53,7 @@ class CarefulOKXArbitrageParser(ArbitrageParser):
             f.write(f"{timestamp}: {message}\n")
 
     def fetch_symbols(self):
-        print("Запрашиваю данные с OKX... (может занять пару секунд)")
-        url = self.OKX_API + "/api/v5/public/instruments?instType=SPOT"
-        try:
-            r = requests.get(url, timeout=10)
-            r.raise_for_status()
-            return r.json()['data']
-        except Exception as e:
-            self.log_message(f"Ошибка при получении символов: {str(e)}")
-            return []
+        raise NotImplementedError
 
     def process_symbol(self, s, symbol_map, out_edges, symbols):
         symbol = s['instId']
@@ -108,13 +85,7 @@ class CarefulOKXArbitrageParser(ArbitrageParser):
             return 0.01
 
     def fetch_tickers(self):
-        if self.production and self.market_client:
-            all_tickers = self.market_client.get_tickers(instType='SPOT')
-            return all_tickers['data']
-        else:
-            response = requests.get(f"{self.OKX_API}/api/v5/market/tickers?instType=SPOT", timeout=10)
-            response.raise_for_status()
-            return response.json()['data']
+        raise NotImplementedError
 
     def process_ticker(self, sym, base, quote, base_min_size, quote_min_size, base_increment, quote_increment, ticker_map):
         ticker = ticker_map.get(sym)
@@ -159,30 +130,10 @@ class CarefulOKXArbitrageParser(ArbitrageParser):
         return out_edges, symbol_map, price_map
 
     def check_balance(self, asset):
-        if not self.production:
-            return float('inf')
-        try:
-            balance = self.user_client.get_account_balance(ccy=asset)
-            if balance and balance['data']:
-                available = float(balance['data'][0]['availBal'])
-                self.log_message(f"Баланс {asset}: {available:.8f}")
-                return available
-            self.log_message(f"Баланс {asset}: 0.0 (аккаунт не найден)")
-            return 0.0
-        except Exception as e:
-            self.log_message(f"Ошибка при проверке баланса для {asset}: {str(e)}")
-            return 0.0
+        raise NotImplementedError
 
     def fetch_ticker_price(self, symbol):
-        try:
-            response = requests.get(f"{self.OKX_API}/api/v5/market/ticker?instId={symbol}", timeout=5)
-            response.raise_for_status()
-            data = response.json()['data'][0]
-            if not data or 'bidPx' not in data or 'askPx' not in data:
-                return None
-            return {'sell': float(data['bidPx']), 'buy': float(data['askPx'])}
-        except Exception as e:
-            return None
+        raise NotImplementedError
 
     def validate_symbol(self, symbol, price_map):
         if price_map and symbol not in price_map:
@@ -267,51 +218,13 @@ class CarefulOKXArbitrageParser(ArbitrageParser):
         return adjusted_amount, True
 
     def create_order_params(self, symbol, direction, ordType, adjusted_amount):
-        side = 'sell' if direction == 'sell' else 'buy'
-        if direction == 'sell':
-            return {
-                'instId': symbol,
-                'tdMode': 'cash',
-                'side': side,
-                'ordType': ordType,
-                'sz': str(adjusted_amount)
-            }
-        else:
-            return {
-                'instId': symbol,
-                'tdMode': 'cash',
-                'side': side,
-                'ordType': ordType,
-                'quoteSz': str(adjusted_amount)
-            }
+        raise NotImplementedError
 
     def place_order(self, order_params):
-        order = self.trade_client.place_order(**order_params)
-        return order['data'][0]['ordId']
+        raise NotImplementedError
 
     def monitor_order(self, symbol, order_id, direction, amount, from_asset, to_asset, expected_price, fee_rate):
-        start_time = time.time()
-        while time.time() - start_time < 5:
-            order_details = self.trade_client.get_order(instId=symbol, ordId=order_id)
-            if order_details is None or not order_details['data']:
-                self.log_message(f"Ошибка: get_order для {order_id} вернул None")
-                return None, False
-            details = order_details['data'][0]
-            if details['state'] == 'filled':
-                execution_time = time.time() - start_time
-                filled_amount = float(details['accFillSz'])
-                avg_price = float(details['avgPx'])
-                dealt_funds = filled_amount * avg_price
-                actual_price = dealt_funds / filled_amount if direction == 'sell' else filled_amount / dealt_funds
-                actual_amount = dealt_funds * (1 - fee_rate) if direction == 'sell' else filled_amount * (1 - fee_rate)
-                self.log_message(f"Транзакция {direction} {amount:.8f} {from_asset} -> {to_asset} завершена за {execution_time:.2f} сек.")
-                self.log_message(f"Ожидаемая цена: {expected_price:.8f}, Фактическая средняя цена: {actual_price:.8f}")
-                self.log_message(f"Ожидаемое количество: {(amount * expected_price * (1 - fee_rate) if direction == 'sell' else (amount / expected_price) * (1 - fee_rate)):.8f} {to_asset}, Фактическое количество: {actual_amount:.8f} {to_asset}")
-                return actual_amount, True
-            time.sleep(0.1)
-        self.log_message(f"Транзакция {direction} {amount:.8f} {from_asset} -> {to_asset} не завершилась за 5 секунд, отменяется.")
-        self.trade_client.cancel_order(instId=symbol, ordId=order_id)
-        return None, False
+        raise NotImplementedError
 
     def execute_trade(self, from_asset, to_asset, amount, symbol, direction, expected_price, fee_rate, price_map=None):
         if not self.validate_symbol(symbol, price_map):
@@ -418,46 +331,100 @@ class CarefulOKXArbitrageParser(ArbitrageParser):
                 }
         return None
 
-    def find_arbitrage_cycles(self, fee_rate=0.001, min_profit=0.0001, start_amount=1.0, max_cycles=200000,
-                              max_cycle_len=4):
+    def find_arbitrage_cycles(self, fee_rate=0.001, min_profit=0.0001, start_amount=1.0,
+                              max_cycles=20000000, max_cycle_len=4):
+        """
+        Ищет циклы длины 3..max_cycle_len.
+        Параметры:
+          - fee_rate: комиссия за сделку (например 0.001 = 0.1%)
+          - min_profit: минимальная относительная прибыль для отчёта (например 0.001 = 0.1%)
+          - start_amount: стартовый объём для симуляции
+          - max_cycles: лимит проверяемых путей (защита от долгой работы)
+          - max_cycle_len: максимальное число разных активов в цикле (>=3)
+        Возвращает список возможностей вида:
+          {'path': [A,B,C,A], 'start_asset':A, 'start_amount':..., 'end_amount':..., 'profit_perc':..., 'trades': [...]}
+        """
         if max_cycle_len < 3:
-            raise ValueError("max_cycle_len должен быть >= 3")
+            raise ValueError("max_cycle_len must be >= 3")
         out_edges, symbol_map, price_map = self.build_graph_and_prices()
         opportunities = []
         checked = 0
-        seen_cycles = set()
-        assets = sorted([a for a in out_edges.keys() if len(out_edges[a]) >= 1])
-        for start in assets:
-            queue = deque([[start]])
-            while queue:
-                current_path = queue.popleft()
-                current = current_path[-1]
-                path_len = len(current_path)
-                if path_len >= 3 and start in out_edges[current]:
-                    cycle_nodes = current_path[:]
-                    norm = self.normalize_cycle(cycle_nodes)
-                    if norm not in seen_cycles:
-                        seen_cycles.add(norm)
-                        op = self.process_cycle(cycle_nodes, start_amount, symbol_map, price_map, fee_rate, min_profit)
-                        if op:
-                            opportunities.append(op)
-                    checked += 1
-                    if checked > max_cycles:
-                        break
-                if path_len >= max_cycle_len:
-                    continue
-                for nb in out_edges[current]:
-                    if nb == start or nb in current_path:
-                        continue
-                    new_path = current_path + [nb]
-                    queue.append(new_path)
-                    checked += 1
-                    if checked > max_cycles:
-                        break
+        seen_cycles = set() # для удаления ротационных дубликатов
+        assets = list(out_edges.keys())
+        stop_flag = False
+        def dfs(start, current_path):
+            nonlocal checked, stop_flag
+            if stop_flag:
+                return
+            current = current_path[-1]
+            # Если длина >=3 и есть обратная дуга к старту -> нашли цикл
+            if len(current_path) >= 3 and start in out_edges[current]:
+                # Нормализуем цикл без повторного конца
+                cycle_nodes = current_path[:] # e.g. [A, B, C]
+                norm = self.normalize_cycle(cycle_nodes)
+                if norm not in seen_cycles:
+                    seen_cycles.add(norm)
+                    # Проверяем и симулируем сделки
+                    trades = []
+                    amt = start_amount
+                    valid = True
+                    for i in range(len(cycle_nodes)):
+                        frm = cycle_nodes[i]
+                        to = cycle_nodes[(i + 1) % len(cycle_nodes)]
+                        new_amt, sym, direction, price = self.convert_amount(amt, frm, to, symbol_map, price_map, fee_rate)
+                        if new_amt is None:
+                            valid = False
+                            break
+                        trades.append((frm, to, sym, direction, new_amt, price))
+                        amt = new_amt
+                    if valid:
+                        profit = amt - start_amount
+                        profit_perc = profit / start_amount
+                        if profit_perc > min_profit:
+                            # путь с повтором начального узла для удобства
+                            path_with_return = list(cycle_nodes) + [cycle_nodes[0]]
+                            opportunities.append({
+                                'path': path_with_return,
+                                'start_asset': cycle_nodes[0],
+                                'start_amount': start_amount,
+                                'end_amount': amt,
+                                'profit': profit,
+                                'profit_perc': profit_perc,
+                                'trades': trades
+                            })
+                checked += 1
                 if checked > max_cycles:
-                    break
-            if checked > max_cycles:
+                    stop_flag = True
+                    return
+            # Продолжаем DFS, если не достигли предельной длины
+            if len(current_path) >= max_cycle_len:
+                return
+            for nb in out_edges[current]:
+                if stop_flag:
+                    return
+                # Не возвращаемся в старт раньше времени и не повторяем вершины
+                if nb == start:
+                    # Мы уже обрабатываем закрытие цикла выше при len>=3, поэтому здесь пропускаем
+                    continue
+                if nb in current_path:
+                    continue
+                # Ограничитель проверяемых путей
+                checked += 1
+                if checked > max_cycles:
+                    stop_flag = True
+                    return
+                current_path.append(nb)
+                dfs(start, current_path)
+                current_path.pop()
+        # Запускаем DFS от каждой вершины
+        for a in assets:
+            if stop_flag:
                 break
+            # Примитивный оптимизационный фильтр: если вершина имеет степень <2, маловероятно образовать цикл >=3
+            if len(out_edges[a]) < 1:
+                continue
+            dfs(a, [a])
+        # Сортируем по убыванию прибыли %
         opportunities.sort(key=lambda x: x['profit_perc'], reverse=True)
         return opportunities
 
@@ -521,7 +488,7 @@ class CarefulOKXArbitrageParser(ArbitrageParser):
 
     def find_valid_ops(self, ops, strict):
         if strict:
-            return [o for o in ops if o['start_asset'] == 'USDT' and o['path'][0] == 'USDT' and o['path'][-1] == 'USDT']
+            return [o for o in ops if o['start_asset'] == self.strict_coin and o['path'][0] == self.strict_coin and o['path'][-1] == self.strict_coin]
         return ops
 
     def get_best_op(self, valid_ops):
@@ -535,35 +502,44 @@ class CarefulOKXArbitrageParser(ArbitrageParser):
         return None
 
     def update_consecutive(self, ops):
-        current_norms = {}
+        current_norms = set()
         for op in ops:
             norm = self.normalize_cycle(op['path'][:-1])
-            current_norms[norm] = op['path']
-        new_path_consecutive = []
-        for entry in self.path_consecutive:
-            if entry['norm'] in current_norms:
-                entry['cons_value'] += 1
-                entry['path'] = current_norms[entry['norm']]
-                new_path_consecutive.append(entry)
+            current_norms.add(norm)
+        self.consecutive_same = [d for d in self.consecutive_same if d['path'] in current_norms]
         for norm in current_norms:
-            if norm not in [e['norm'] for e in new_path_consecutive]:
-                new_path_consecutive.append({'norm': norm, 'cons_value': 1, 'path': current_norms[norm]})
-        self.path_consecutive = new_path_consecutive
+            existing = False
+            for d in self.consecutive_same:
+                if d['path'] == norm:
+                    d['cons_value'] += 1
+                    existing = True
+                    break
+            if not existing:
+                self.consecutive_same.append({'path': norm, 'cons_value': 1})
 
-    def get_consecutive_for_norm(self, norm):
-        for entry in self.path_consecutive:
-            if entry['norm'] == norm:
-                return entry['cons_value']
+    def get_cons_for_op(self, op):
+        norm = self.normalize_cycle(op['path'][:-1])
+        for d in self.consecutive_same:
+            if d['path'] == norm:
+                return d['cons_value']
+        return 0
+
+    def get_consecutive_for_best(self, best_op):
+        if best_op:
+            norm = self.get_norm_path(best_op)
+            for d in self.consecutive_same:
+                if d['path'] == norm:
+                    return d['cons_value']
         return 0
 
     def get_sell_strings(self, amt, frm, to, sym, price, fee_rate, new_amt):
-        line1 = f"  Selling {amt:.8f} {frm} for {to} using pair {sym} at bid price {price:.8f} ({to} per {frm})"
-        line2 = f"  Amount received: {amt:.8f} * {price:.8f} * (1 - {fee_rate}) = {new_amt:.8f} {to}"
+        line1 = f" Selling {amt:.8f} {frm} for {to} using pair {sym} at bid price {price:.8f} ({to} per {frm})"
+        line2 = f" Amount received: {amt:.8f} * {price:.8f} * (1 - {fee_rate}) = {new_amt:.8f} {to}"
         return line1, line2
 
     def get_buy_strings(self, amt, frm, to, sym, price, fee_rate, new_amt):
-        line1 = f"  Buying {new_amt:.8f} {to} with {amt:.8f} {frm} using pair {sym} at ask price {price:.8f} ({frm} per {to})"
-        line2 = f"  Amount bought: ({amt:.8f} / {price:.8f}) * (1 - {fee_rate}) = {new_amt:.8f} {to}"
+        line1 = f" Buying {new_amt:.8f} {to} with {amt:.8f} {frm} using pair {sym} at ask price {price:.8f} ({frm} per {to})"
+        line2 = f" Amount bought: ({amt:.8f} / {price:.8f}) * (1 - {fee_rate}) = {new_amt:.8f} {to}"
         return line1, line2
 
     def get_trade_strings(self, amt, t, fee_rate):
@@ -588,8 +564,8 @@ class CarefulOKXArbitrageParser(ArbitrageParser):
         for o in ops[:50]:
             self.print_op(o, self.fee_rate)
 
-    def check_enter_trade_mode(self, consecutive_same, valid_ops, possible):
-        return consecutive_same > 5 and valid_ops and possible
+    def check_enter_trade_mode(self, high_cons_ops, possible):
+        return bool(high_cons_ops) and possible
 
     def init_trade_vars(self, best_op):
         initial_deposit = self.deposit
@@ -599,30 +575,19 @@ class CarefulOKXArbitrageParser(ArbitrageParser):
         return initial_deposit, amt, trades, valid
 
     def adjust_start_balance(self, start_asset):
-        if self.production:
-            available_start = self.check_balance(start_asset)
-            if available_start < self.deposit:
-                self.log_message(f"Недостаточно {start_asset} на балансе: доступно {available_start:.8f}, требуется {self.deposit:.8f}. Используем весь доступный баланс.")
-                amt = available_start
-                if amt == 0:
-                    self.log_message(f"Баланс {start_asset} равен нулю, арбитраж невозможен.")
-                    return 0, False
-            return amt, True
-        return self.deposit, True
+        if not self.production:
+            return self.deposit, True
+        available_start = self.check_balance(start_asset)
+        if available_start == 0:
+            self.log_message(f"Баланс {start_asset} равен нулю, арбитраж невозможен.")
+            return 0, False
+        amt = min(available_start, self.deposit)
+        if amt < self.deposit:
+            self.log_message(f"Недостаточно {start_asset} на балансе: доступно {available_start:.8f}, требуется {self.deposit:.8f}. Используем весь доступный баланс.")
+        return amt, True
 
     def fetch_current_prices(self):
-        try:
-            if self.production and self.market_client:
-                all_tickers = self.market_client.get_tickers(instType='SPOT')
-                tickers = all_tickers['data']
-            else:
-                response = requests.get(f"{self.OKX_API}/api/v5/market/tickers?instType=SPOT", timeout=10)
-                response.raise_for_status()
-                tickers = response.json()['data']
-            return {t['instId']: {'sell': float(t['bidPx']), 'buy': float(t['askPx'])} for t in tickers if 'bidPx' in t and 'askPx' in t}
-        except Exception as e:
-            self.log_message(f"Ошибка при получении всех тикеров для проверки: {str(e)}")
-            return None
+        raise NotImplementedError
 
     def get_current_price(self, sym, direction, current_prices, price_map):
         current_ticker = current_prices.get(sym)
@@ -673,10 +638,6 @@ class CarefulOKXArbitrageParser(ArbitrageParser):
                 return None, False, None
             simulated_trades.append((frm, to, sym, direction, expected_new_amt, current_price))
             cycle_amt = expected_new_amt
-            if cycle_amt < amt:
-                self.log_message(f"Симуляция: Транзакция {frm} -> {to} убыточна: ожидается {cycle_amt:.8f} {to}, текущий объем {amt:.8f} {frm}")
-                is_profitable = False
-            amt = cycle_amt
         return cycle_amt, is_profitable, simulated_trades
 
     def simulate_cycle(self, best_op, amt, symbol_map, price_map, fee, min_profit):
@@ -686,12 +647,12 @@ class CarefulOKXArbitrageParser(ArbitrageParser):
         cycle_amt, is_profitable, simulated_trades = self.simulate_cycle_loop(best_op, amt, symbol_map, price_map, fee, current_prices)
         if cycle_amt is None:
             return None, False, None, False
-        profit_perc = (cycle_amt / self.deposit - 1) * 100
+        profit_perc = (cycle_amt / amt - 1) * 100  # Исправление: использовать текущий amt вместо self.deposit
         if not is_profitable or profit_perc <= min_profit * 100:
             self.log_message(f"Цикл {' -> '.join(best_op['path'])} отклонён: прогнозируемая прибыль {profit_perc:.4f}% меньше порога {min_profit * 100:.4f}% или убыточна")
             return None, False, None, False
         self.log_message(f"Симуляция цикла успешна: прогнозируемая прибыль {profit_perc:.4f}%")
-        self.log_simulated_steps(simulated_trades, fee, self.deposit)
+        self.log_simulated_steps(simulated_trades, fee, amt)  # Исправление: использовать amt
         return simulated_trades, is_profitable, cycle_amt, True
 
     def log_simulated_steps(self, simulated_trades, fee, initial_deposit):
@@ -705,6 +666,8 @@ class CarefulOKXArbitrageParser(ArbitrageParser):
         self.log_message("----")
 
     def execute_cycle_loop(self, best_op, amt, trades, valid, symbol_map, price_map, fee):
+        self.log_path_and_profit(best_op)
+        self.log_calc_steps(best_op, fee)
         is_profitable = True
         for i in range(len(best_op['path']) - 1):
             frm = best_op['path'][i]
@@ -714,8 +677,6 @@ class CarefulOKXArbitrageParser(ArbitrageParser):
                 self.log_message(f"Транзакция {frm} -> {to} невозможна из-за ограничений минимального размера или точности")
                 valid = False
                 break
-            self.log_path_and_profit(best_op)
-            self.log_calc_steps(best_op, fee)
             current_ticker = self.fetch_ticker_price(sym)
             self.log_message(f"Raw ticker response для {sym}: {current_ticker}")
             if current_ticker is None or 'buy' not in current_ticker or 'sell' not in current_ticker:
@@ -724,9 +685,6 @@ class CarefulOKXArbitrageParser(ArbitrageParser):
                 break
             current_price = float(current_ticker['sell']) if direction == 'sell' else float(current_ticker['buy'])
             expected_new_amt = amt * current_price * (1 - fee) if direction == 'sell' else (amt / current_price) * (1 - fee)
-            if expected_new_amt < amt:
-                self.log_message(f"Транзакция {frm} -> {to} убыточна: ожидается {expected_new_amt:.8f} {to}, текущий объем {amt:.8f} {frm}")
-                is_profitable = False
             if self.production:
                 available = self.check_balance(frm)
                 if available < amt:
@@ -807,9 +765,9 @@ class CarefulOKXArbitrageParser(ArbitrageParser):
 
     def run_realtime_init(self, strict):
         fee = self.fee_rate
-        min_profit = 0.000001
+        min_profit = 0.005
         start = 1.0
-        max_len = 5
+        max_len = 6
         ops = self.find_arbitrage_cycles(fee_rate=fee, min_profit=min_profit, start_amount=start, max_cycles=200000, max_cycle_len=max_len)
         self.update_consecutive(ops)
         valid_ops = self.find_valid_ops(ops, strict)
@@ -822,34 +780,34 @@ class CarefulOKXArbitrageParser(ArbitrageParser):
         else:
             self.print_ops(ops)
 
-    def run_realtime_trade(self, valid_ops, best_op):
+    def run_realtime_trade(self, selected_op):
         self.log_message("Входим в режим активного трейдера")
-        initial_deposit, amt, trades, valid = self.init_trade_vars(best_op)
+        initial_deposit, amt, trades, valid = self.init_trade_vars(selected_op)
         out_edges, symbol_map, price_map = self.build_graph_and_prices()
-        start_asset = best_op['start_asset']
+        start_asset = selected_op['start_asset']
         amt, valid = self.adjust_start_balance(start_asset)
         if not valid:
-            self.consecutive_same = 0
             return
-        self.log_message(f"Проверка прибыльности цикла: {' -> '.join(best_op['path'])}")
-        simulated_trades, is_profitable, cycle_amt, valid = self.simulate_cycle(best_op, amt, symbol_map, price_map, self.fee_rate, 0.000001)
+        self.log_message(f"Проверка прибыльности цикла: {' -> '.join(selected_op['path'])}")
+        simulated_trades, is_profitable, cycle_amt, valid = self.simulate_cycle(selected_op, amt, symbol_map, price_map, self.fee_rate, 0.000001)
         if not valid:
-            self.consecutive_same = 0
             return
-        amt, trades, valid, is_profitable = self.execute_cycle(best_op, initial_deposit, amt, trades, valid, symbol_map, price_map, self.fee_rate)
+        amt, trades, valid, is_profitable = self.execute_cycle(selected_op, initial_deposit, amt, trades, valid, symbol_map, price_map, self.fee_rate)
         if valid:
-            self.save_trade_results(best_op, amt, initial_deposit, trades, is_profitable, self.fee_rate)
+            self.save_trade_results(selected_op, amt, initial_deposit, trades, is_profitable, self.fee_rate)
         else:
             self.log_message("Арбитраж не выполнен из-за ошибок в транзакциях или убыточности цикла")
-        self.consecutive_same = 0
+        norm = self.get_norm_path(selected_op)
+        self.consecutive_same = [d for d in self.consecutive_same if d['path'] != norm]
+        print('falsing')
+        self.possible = False
 
-    def run_realtime(self, strict=True):
-        ops, valid_ops, best_op = self.run_realtime_init(strict)
+    def run_realtime(self):
+        ops, valid_ops, best_op = self.run_realtime_init(self.strict)
         self.run_realtime_print(ops)
-        candidates = [op for op in valid_ops if self.get_consecutive_for_norm(self.normalize_cycle(op['path'][:-1])) > 5]
-        if candidates:
-            best_op_to_trade = max(candidates, key=lambda x: x['profit_perc'])
-            self.run_realtime_trade(valid_ops, best_op_to_trade)
-        else:
-            max_cons = max([self.get_consecutive_for_norm(self.normalize_cycle(op['path'][:-1])) for op in valid_ops] + [0])
-            self.log_message(f"CHECKING: max_consecutive = {max_cons}")
+        high_cons_ops = [op for op in ops if self.get_cons_for_op(op) >= 2]
+        consecutive_same = self.get_consecutive_for_best(best_op)
+        self.log_message(f"CHECKING: consecutive_same = {consecutive_same}")
+        if consecutive_same > 5 and self.possible:
+            selected_op = max(high_cons_ops, key=lambda x: x['profit_perc'])
+            self.run_realtime_trade(selected_op)

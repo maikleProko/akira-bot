@@ -1,9 +1,7 @@
-import json
 import requests
 from collections import defaultdict, deque
 
-from scenarios.parsers.arbitrage_parser.abstracts.arbitrage_parser import ArbitrageParser
-from utils.core.functions import MarketProcess
+from files.trash.arbitrage_parser import ArbitrageParser
 from datetime import datetime
 import time
 import threading

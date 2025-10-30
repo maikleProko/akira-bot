@@ -1,23 +1,23 @@
 from collections import defaultdict
 import requests
-from scenarios.parsers.arbitrage_parser.abstracts.arbitrage_parser import ArbitrageParser
+from files.trash.arbitrage_parser import ArbitrageParser
 
 
-class BybitArbitrageParser(ArbitrageParser):
-    BYBIT_API = "https://api.bybit.com"
+class KuCoinArbitrageParser(ArbitrageParser):
+    KUCOIN_API = "https://api.kucoin.com"
 
-    def fetch_instruments_info(self):
-        print("Запрашиваю данные с Bybit... (может занять пару секунд)")
-        url = self.BYBIT_API + "/v5/market/instruments-info?category=spot"
+    def fetch_symbols(self):
+        print("Запрашиваю данные с KuCoin... (может занять пару секунд)")
+        url = self.KUCOIN_API + "/api/v2/symbols"
         r = requests.get(url, timeout=10)
         r.raise_for_status()
-        return r.json()['result']['list']
+        return r.json()['data']
 
-    def fetch_tickers(self):
-        url = self.BYBIT_API + "/v5/market/tickers?category=spot"
+    def fetch_all_tickers(self):
+        url = self.KUCOIN_API + "/api/v1/market/allTickers"
         r = requests.get(url, timeout=10)
         r.raise_for_status()
-        return r.json()['result']['list']
+        return r.json()['data']['ticker']
 
     def build_graph_and_prices(self):
         """
@@ -26,8 +26,8 @@ class BybitArbitrageParser(ArbitrageParser):
           - symbol_map: dict of (base,quote) -> symbol string
           - price_map: dict symbol -> {'bid': float, 'ask': float, 'base':..., 'quote':...}
         """
-        info = self.fetch_instruments_info()
-        tickers = self.fetch_tickers()
+        info = self.fetch_symbols()
+        tickers = self.fetch_all_tickers()
 
         ticker_map = {t['symbol']: t for t in tickers}
 
@@ -37,17 +37,16 @@ class BybitArbitrageParser(ArbitrageParser):
 
         for s in info:
             symbol = s['symbol']
-            status = s['status']
-            if status != 'Trading':
+            if not s.get('enableTrading', False):
                 continue
-            base = s['baseCoin']
-            quote = s['quoteCoin']
+            base = s['baseCurrency']
+            quote = s['quoteCurrency']
             t = ticker_map.get(symbol)
             if not t:
                 continue
             try:
-                bid = float(t['bid1Price'])
-                ask = float(t['ask1Price'])
+                bid = float(t['sell'])
+                ask = float(t['buy'])
             except Exception:
                 continue
             if bid <= 0 or ask <= 0:
