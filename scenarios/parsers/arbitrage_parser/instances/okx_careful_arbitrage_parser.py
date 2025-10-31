@@ -87,22 +87,18 @@ class OkxCarefulArbitrageParser(CarefulArbitrageParser):
 
     def create_order_params(self, symbol, direction, ordType, adjusted_amount):
         side = 'sell' if direction == 'sell' else 'buy'
+        params = {
+            'instId': symbol,
+            'tdMode': 'cash',
+            'side': side,
+            'ordType': ordType,
+            'sz': str(adjusted_amount)
+        }
         if direction == 'sell':
-            return {
-                'instId': symbol,
-                'tdMode': 'cash',
-                'side': side,
-                'ordType': ordType,
-                'sz': str(adjusted_amount)
-            }
+            params['tgtCcy'] = 'base_ccy'  # Не обязательно, default, но для ясности
         else:
-            return {
-                'instId': symbol,
-                'tdMode': 'cash',
-                'side': side,
-                'ordType': ordType,
-                'quoteSz': str(adjusted_amount)
-            }
+            params['tgtCcy'] = 'quote_ccy'  # Для buy: sz - сумма quote-валюты
+        return params
 
     def place_order(self, order_params):
         order = self.trade_client.place_order(**order_params)

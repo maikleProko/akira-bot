@@ -332,7 +332,7 @@ class CarefulArbitrageParser(MarketProcess):
         return None
 
     def find_arbitrage_cycles(self, fee_rate=0.001, min_profit=0.0001, start_amount=1.0,
-                              max_cycles=20000000, max_cycle_len=4):
+                              max_cycles=2000000, max_cycle_len=4):
         """
         Ищет циклы длины 3..max_cycle_len.
         Параметры:
@@ -808,6 +808,6 @@ class CarefulArbitrageParser(MarketProcess):
         high_cons_ops = [op for op in ops if self.get_cons_for_op(op) >= 2]
         consecutive_same = self.get_consecutive_for_best(best_op)
         self.log_message(f"CHECKING: consecutive_same = {consecutive_same}")
-        if consecutive_same > 5 and self.possible:
+        if consecutive_same > 3 and self.possible:
             selected_op = max(high_cons_ops, key=lambda x: x['profit_perc'])
             self.run_realtime_trade(selected_op)
