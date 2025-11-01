@@ -1,28 +1,39 @@
+# careful_arbitrage_parser.py
+
 from collections import defaultdict
 from datetime import datetime
 import json
 import math
 import time
+from decimal import Decimal, getcontext, ROUND_FLOOR
+getcontext().prec = 28  # Точность для крипто
+
 from files.trash.arbitrage_parser import ArbitrageParser as MarketProcess
 
 class CarefulArbitrageParser(MarketProcess):
-    def __init__(self, deposit=1.0, production=True, api_key=None, api_secret=None, api_passphrase=None, strict=False, strict_coin='USDT'):
+    def __init__(self, deposit=0.0001, production=True, api_key=None, api_secret=None, api_passphrase=None, strict=False, strict_coin='USDT', fee_rate=0.001, min_profit=0.005, use_all_balance=True, max_profit = 100.0):
         self.deposit = deposit
         self.production = production
         self.api_key = api_key
         self.api_secret = api_secret
         self.api_passphrase = api_passphrase
         self.consecutive_same = []
-        self.fee_rate = 0.001
+        self.fee_rate = fee_rate
+        self.min_profit = min_profit
         self.possible = True
         self.prev_paths = None
         self.market_client = None
         self.trade_client = None
         self.user_client = None
+        self.max_profit=max_profit
         self.ignore = []
         self.check_liquidity = False
         self.strict = strict
         self.strict_coin = strict_coin
+        self.use_all_balance = use_all_balance
+        self.restricted_pairs = set()  # Кэш заблокированных пар
+        self.ignored_symbols = frozenset([
+        ])
         if self.production:
             if not api_key or not api_secret:
                 self.log_message("Ошибка: API-ключ и секрет необходимы для продакшен-режима")
@@ -143,10 +154,10 @@ class CarefulArbitrageParser(MarketProcess):
 
     def get_size_constraints(self, entry):
         return (
-            entry.get('base_min_size', 0.0),
-            entry.get('quote_min_size', 0.0),
-            entry.get('base_increment', 0.00000001),
-            entry.get('quote_increment', 0.00000001)
+            Decimal(str(entry.get('base_min_size', 0.0))),
+            Decimal(str(entry.get('quote_min_size', 0.0))),
+            Decimal(str(entry.get('base_increment', 0.00000001))),
+            Decimal(str(entry.get('quote_increment', 0.00000001)))
         )
 
     def get_constraints(self, symbol, price_map, expected_price):
@@ -155,7 +166,7 @@ class CarefulArbitrageParser(MarketProcess):
         else:
             entry = {}
         sizes = self.get_size_constraints(entry)
-        ask = entry.get('ask', expected_price)
+        ask = Decimal(str(entry.get('ask', expected_price)))
         return sizes + (ask,)
 
     def get_cycle_constraints(self, sym, price_map):
@@ -163,25 +174,29 @@ class CarefulArbitrageParser(MarketProcess):
         return self.get_size_constraints(entry)
 
     def adjust_balance(self, from_asset, amount):
-        available = self.check_balance(from_asset)
-        if available < amount:
-            self.log_message(f"Недостаточно {from_asset} на балансе: доступно {available:.8f}, требуется {amount:.8f}. Используем весь доступный баланс.")
-            amount = available
-            if amount == 0:
+        available = Decimal(str(self.check_balance(from_asset)))
+        amount_dec = Decimal(str(amount))
+        if available < amount_dec:
+            self.log_message(f"Недостаточно {from_asset} на балансе: доступно {available}, требуется {amount_dec}. Используем весь доступный баланс.")
+            amount_dec = available
+            if amount_dec == 0:
                 self.log_message(f"Баланс {from_asset} равен нулю, транзакция невозможна.")
                 return 0, False
-        return amount, True
+        return float(amount_dec), True
 
     def adjust_sell_amount(self, amount, base_min_size, base_increment, from_asset, symbol):
-        if amount < base_min_size:
-            self.log_message(f"Ошибка: Сумма {amount:.8f} {from_asset} меньше минимального размера {base_min_size:.8f} для {symbol}")
+        amount_dec = Decimal(str(amount))
+        base_min_size_dec = Decimal(str(base_min_size))
+        base_increment_dec = Decimal(str(base_increment))
+        adjusted_amount_dec = (amount_dec / base_increment_dec).to_integral_value(rounding=ROUND_FLOOR) * base_increment_dec
+        if adjusted_amount_dec < base_min_size_dec:
+            self.log_message(f"Ошибка: Сумма {adjusted_amount_dec} {from_asset} меньше минимального размера {base_min_size_dec} для {symbol}")
             return 0, False
-        adjusted_amount = math.floor(amount / base_increment) * base_increment
-        if adjusted_amount <= 0:
-            self.log_message(f"Ошибка: После округления сумма {adjusted_amount:.8f} {from_asset} равна нулю для {symbol}")
+        if adjusted_amount_dec <= 0:
+            self.log_message(f"Ошибка: После округления сумма {adjusted_amount_dec} {from_asset} равна нулю для {symbol}")
             return 0, False
-        self.log_message(f"Скорректированная сумма для продажи: {adjusted_amount:.8f} {from_asset} (base_increment: {base_increment:.8f})")
-        return adjusted_amount, True
+        self.log_message(f"Скорректированная сумма для продажи: {adjusted_amount_dec} {from_asset} (base_increment: {base_increment_dec})")
+        return float(adjusted_amount_dec), True
 
     def get_buy_ticker(self, symbol):
         ticker = self.fetch_ticker_price(symbol)
@@ -191,31 +206,38 @@ class CarefulArbitrageParser(MarketProcess):
         return float(ticker['buy'])
 
     def adjust_buy_funds(self, amount, available, quote_min_size, from_asset, symbol):
-        funds = min(amount, available)
-        if funds < quote_min_size:
-            self.log_message(f"Ошибка: Сумма {funds:.8f} {from_asset} меньше минимального размера {quote_min_size:.8f} для {symbol}")
+        amount_dec = Decimal(str(amount))
+        available_dec = Decimal(str(available))
+        quote_min_size_dec = Decimal(str(quote_min_size))
+        funds_dec = min(amount_dec, available_dec)
+        if funds_dec < quote_min_size_dec:
+            self.log_message(f"Ошибка: Сумма {funds_dec} {from_asset} меньше минимального размера {quote_min_size_dec} для {symbol}")
             return 0, False
-        return funds, True
+        return float(funds_dec), True
 
     def adjust_buy_amount(self, funds, current_ask_price, base_min_size, base_increment, quote_increment, to_asset, symbol, available, from_asset):
-        max_base_amount = funds / current_ask_price
-        if max_base_amount < base_min_size:
-            self.log_message(f"Ошибка: Максимальное количество {max_base_amount:.8f} {to_asset} меньше минимального размера {base_min_size:.8f} для {symbol}")
+        funds_dec = Decimal(str(funds))
+        current_ask_price_dec = Decimal(str(current_ask_price))
+        base_min_size_dec = Decimal(str(base_min_size))
+        base_increment_dec = Decimal(str(base_increment))
+        quote_increment_dec = Decimal(str(quote_increment))
+        available_dec = Decimal(str(available))
+
+        max_base_amount_dec = funds_dec / current_ask_price_dec
+        adjusted_base_amount_dec = (max_base_amount_dec / base_increment_dec).to_integral_value(rounding=ROUND_FLOOR) * base_increment_dec
+        if adjusted_base_amount_dec < base_min_size_dec:
+            self.log_message(f"Ошибка: Скорректированное количество {adjusted_base_amount_dec} {to_asset} меньше минимального размера {base_min_size_dec} для {symbol}")
             return 0, False
-        adjusted_base_amount = math.floor(max_base_amount / base_increment) * base_increment
-        if adjusted_base_amount < base_min_size:
-            self.log_message(f"Ошибка: Скорректированное количество {adjusted_base_amount:.8f} {to_asset} меньше минимального размера {base_min_size:.8f} для {symbol}")
+        adjusted_amount_dec = adjusted_base_amount_dec * current_ask_price_dec
+        adjusted_amount_dec = (adjusted_amount_dec / quote_increment_dec).to_integral_value(rounding=ROUND_FLOOR) * quote_increment_dec
+        if adjusted_amount_dec <= 0:
+            self.log_message(f"Ошибка: После округления сумма {adjusted_amount_dec} {from_asset} равна нулю для {symbol}")
             return 0, False
-        adjusted_amount = adjusted_base_amount * current_ask_price
-        adjusted_amount = math.floor(adjusted_amount / quote_increment) * quote_increment
-        if adjusted_amount <= 0:
-            self.log_message(f"Ошибка: После округления сумма {adjusted_amount:.8f} {from_asset} равна нулю для {symbol}")
+        if adjusted_amount_dec > available_dec:
+            self.log_message(f"Ошибка: Скорректированная сумма {adjusted_amount_dec} {from_asset} превышает доступный баланс {available_dec}")
             return 0, False
-        if adjusted_amount > available:
-            self.log_message(f"Ошибка: Скорректированная сумма {adjusted_amount:.8f} {from_asset} превышает доступный баланс {available:.8f}")
-            return 0, False
-        self.log_message(f"Скорректированная сумма для покупки: {adjusted_amount:.8f} {from_asset} (quote_increment: {quote_increment:.8f}, expected {adjusted_base_amount:.8f} {to_asset} at price {current_ask_price:.8f})")
-        return adjusted_amount, True
+        self.log_message(f"Скорректированная сумма для покупки: {adjusted_amount_dec} {from_asset} (quote_increment: {quote_increment_dec}, expected {adjusted_base_amount_dec} {to_asset} at price {current_ask_price_dec})")
+        return float(adjusted_amount_dec), True
 
     def create_order_params(self, symbol, direction, ordType, adjusted_amount):
         raise NotImplementedError
@@ -278,78 +300,46 @@ class CarefulArbitrageParser(MarketProcess):
         return amt, sym, direction, price
 
     def validate_trade_constraints(self, amt, direction, price, base_min_size, quote_min_size, base_increment, quote_increment, fee_rate, frm, to, sym):
-        if direction == 'sell':
-            adjusted_amount = math.floor(amt / base_increment) * base_increment
-            if adjusted_amount < base_min_size:
-                return None
-            new_amt = adjusted_amount * price * (1 - fee_rate)
-            if new_amt < quote_min_size:
-                return None
-            return new_amt
-        else:
-            max_base_amount = amt / price
-            adjusted_base_amount = math.floor(max_base_amount / base_increment) * base_increment
-            if adjusted_base_amount < base_min_size:
-                return None
-            adjusted_amount = adjusted_base_amount * price
-            adjusted_amount = math.floor(adjusted_amount / quote_increment) * quote_increment
-            if adjusted_amount < quote_min_size:
-                return None
-            return adjusted_base_amount * (1 - fee_rate)
+        amt_dec = Decimal(str(amt))
+        price_dec = Decimal(str(price))
+        base_min_size_dec = Decimal(str(base_min_size))
+        quote_min_size_dec = Decimal(str(quote_min_size))
+        base_increment_dec = Decimal(str(base_increment))
+        quote_increment_dec = Decimal(str(quote_increment))
+        fee_dec = Decimal(str(fee_rate))
 
-    def process_cycle(self, cycle_nodes, start_amount, symbol_map, price_map, fee_rate, min_profit):
-        trades = []
-        amt = start_amount
-        valid = True
-        for i in range(len(cycle_nodes)):
-            frm = cycle_nodes[i]
-            to = cycle_nodes[(i + 1) % len(cycle_nodes)]
-            amt, sym, direction, price = self.process_cycle_trade(amt, frm, to, symbol_map, price_map, fee_rate)
-            if sym is None:
-                valid = False
-                break
-            base_min_size, quote_min_size, base_increment, quote_increment = self.get_cycle_constraints(sym, price_map)
-            new_amt = self.validate_trade_constraints(amt, direction, price, base_min_size, quote_min_size, base_increment, quote_increment, fee_rate, frm, to, sym)
-            if new_amt is None:
-                valid = False
-                break
-            trades.append((frm, to, sym, direction, new_amt, price))
-            amt = new_amt
-        if valid:
-            profit = amt - start_amount
-            profit_perc = profit / start_amount
-            if profit_perc <= 1.0 and profit_perc > min_profit:
-                path_with_return = list(cycle_nodes) + [cycle_nodes[0]]
-                return {
-                    'path': path_with_return,
-                    'start_asset': cycle_nodes[0],
-                    'start_amount': start_amount,
-                    'end_amount': amt,
-                    'profit': profit,
-                    'profit_perc': profit_perc,
-                    'trades': trades
-                }
-        return None
+        if direction == 'sell':
+            adjusted_amount_dec = (amt_dec / base_increment_dec).to_integral_value(rounding=ROUND_FLOOR) * base_increment_dec
+            if adjusted_amount_dec < base_min_size_dec:
+                return None
+            new_amt_dec = adjusted_amount_dec * price_dec * (Decimal('1') - fee_dec)
+            if new_amt_dec < quote_min_size_dec:
+                return None
+            new_amt_dec = (new_amt_dec / quote_increment_dec).to_integral_value(rounding=ROUND_FLOOR) * quote_increment_dec
+            if new_amt_dec <= 0:
+                return None
+            return float(new_amt_dec)
+        else:
+            max_base_amount_dec = amt_dec / price_dec
+            adjusted_base_amount_dec = (max_base_amount_dec / base_increment_dec).to_integral_value(rounding=ROUND_FLOOR) * base_increment_dec
+            if adjusted_base_amount_dec < base_min_size_dec:
+                return None
+            adjusted_amount_dec = adjusted_base_amount_dec * price_dec
+            adjusted_amount_dec = (adjusted_amount_dec / quote_increment_dec).to_integral_value(rounding=ROUND_FLOOR) * quote_increment_dec
+            if adjusted_amount_dec < quote_min_size_dec:
+                return None
+            new_amt_dec = adjusted_base_amount_dec * (Decimal('1') - fee_dec)
+            return float(new_amt_dec)
+
 
     def find_arbitrage_cycles(self, fee_rate=0.001, min_profit=0.0001, start_amount=1.0,
-                              max_cycles=2000000, max_cycle_len=4):
-        """
-        Ищет циклы длины 3..max_cycle_len.
-        Параметры:
-          - fee_rate: комиссия за сделку (например 0.001 = 0.1%)
-          - min_profit: минимальная относительная прибыль для отчёта (например 0.001 = 0.1%)
-          - start_amount: стартовый объём для симуляции
-          - max_cycles: лимит проверяемых путей (защита от долгой работы)
-          - max_cycle_len: максимальное число разных активов в цикле (>=3)
-        Возвращает список возможностей вида:
-          {'path': [A,B,C,A], 'start_asset':A, 'start_amount':..., 'end_amount':..., 'profit_perc':..., 'trades': [...]}
-        """
+                              max_cycles=2000000, max_cycle_len=4, max_profit=100.0):
         if max_cycle_len < 3:
             raise ValueError("max_cycle_len must be >= 3")
         out_edges, symbol_map, price_map = self.build_graph_and_prices()
         opportunities = []
         checked = 0
-        seen_cycles = set() # для удаления ротационных дубликатов
+        seen_cycles = set()
         assets = list(out_edges.keys())
         stop_flag = False
         def dfs(start, current_path):
@@ -357,14 +347,11 @@ class CarefulArbitrageParser(MarketProcess):
             if stop_flag:
                 return
             current = current_path[-1]
-            # Если длина >=3 и есть обратная дуга к старту -> нашли цикл
             if len(current_path) >= 3 and start in out_edges[current]:
-                # Нормализуем цикл без повторного конца
-                cycle_nodes = current_path[:] # e.g. [A, B, C]
+                cycle_nodes = current_path[:]
                 norm = self.normalize_cycle(cycle_nodes)
                 if norm not in seen_cycles:
                     seen_cycles.add(norm)
-                    # Проверяем и симулируем сделки
                     trades = []
                     amt = start_amount
                     valid = True
@@ -378,37 +365,41 @@ class CarefulArbitrageParser(MarketProcess):
                         trades.append((frm, to, sym, direction, new_amt, price))
                         amt = new_amt
                     if valid:
-                        profit = amt - start_amount
-                        profit_perc = profit / start_amount
-                        if profit_perc > min_profit:
-                            # путь с повтором начального узла для удобства
-                            path_with_return = list(cycle_nodes) + [cycle_nodes[0]]
-                            opportunities.append({
-                                'path': path_with_return,
-                                'start_asset': cycle_nodes[0],
-                                'start_amount': start_amount,
-                                'end_amount': amt,
-                                'profit': profit,
-                                'profit_perc': profit_perc,
-                                'trades': trades
-                            })
+                        # Проверка на игнорируемые соседние пары
+                        ignore_cycle = False
+                        for i in range(len(cycle_nodes)):
+                            frm = cycle_nodes[i]
+                            to = cycle_nodes[(i + 1) % len(cycle_nodes)]
+                            if (frm, to) in self.ignored_symbols or (to, frm) in self.ignored_symbols:
+                                ignore_cycle = True
+                                break
+                        if not ignore_cycle:
+                            profit = amt - start_amount
+                            profit_perc = profit / start_amount
+                            if min_profit < profit_perc < max_profit:
+                                path_with_return = list(cycle_nodes) + [cycle_nodes[0]]
+                                opportunities.append({
+                                    'path': path_with_return,
+                                    'start_asset': cycle_nodes[0],
+                                    'start_amount': start_amount,
+                                    'end_amount': amt,
+                                    'profit': profit,
+                                    'profit_perc': profit_perc,
+                                    'trades': trades
+                                })
                 checked += 1
                 if checked > max_cycles:
                     stop_flag = True
                     return
-            # Продолжаем DFS, если не достигли предельной длины
             if len(current_path) >= max_cycle_len:
                 return
             for nb in out_edges[current]:
                 if stop_flag:
                     return
-                # Не возвращаемся в старт раньше времени и не повторяем вершины
                 if nb == start:
-                    # Мы уже обрабатываем закрытие цикла выше при len>=3, поэтому здесь пропускаем
                     continue
                 if nb in current_path:
                     continue
-                # Ограничитель проверяемых путей
                 checked += 1
                 if checked > max_cycles:
                     stop_flag = True
@@ -416,15 +407,12 @@ class CarefulArbitrageParser(MarketProcess):
                 current_path.append(nb)
                 dfs(start, current_path)
                 current_path.pop()
-        # Запускаем DFS от каждой вершины
         for a in assets:
             if stop_flag:
                 break
-            # Примитивный оптимизационный фильтр: если вершина имеет степень <2, маловероятно образовать цикл >=3
             if len(out_edges[a]) < 1:
                 continue
             dfs(a, [a])
-        # Сортируем по убыванию прибыли %
         opportunities.sort(key=lambda x: x['profit_perc'], reverse=True)
         return opportunities
 
@@ -491,10 +479,66 @@ class CarefulArbitrageParser(MarketProcess):
             return [o for o in ops if o['start_asset'] == self.strict_coin and o['path'][0] == self.strict_coin and o['path'][-1] == self.strict_coin]
         return ops
 
+    def check_pair_available(self, sym, direction, price_map):
+        if sym in self.restricted_pairs:
+            return False
+        if not self.production:
+            return True  # В симуляции все пары ок
+        for attempt in range(3):  # Retry 3 times
+            try:
+                entry = price_map.get(sym, {})
+                base_min_size = entry.get('base_min_size', 0.0001)
+                quote_min_size = entry.get('quote_min_size', 5.0)
+                base_increment = entry.get('base_increment', 1e-8)
+                quote_increment = entry.get('quote_increment', 0.01)
+                ticker = self.fetch_ticker_price(sym)
+                if ticker is None:
+                    raise Exception("Failed to fetch ticker for bad_price")
+                bid = float(ticker['sell'])
+                ask = float(ticker['buy'])
+                if direction == 'sell':
+                    adjusted_min_size = math.ceil(base_min_size / base_increment) * base_increment
+                    bad_price = bid * 0.9  # Below market, won't fill
+                    order_params = self.create_order_params(sym, direction, 'limit', adjusted_min_size)
+                else:
+                    min_quote = quote_min_size
+                    adjusted_min_size = math.ceil(min_quote / quote_increment) * quote_increment
+                    bad_price = ask * 1.1  # Above market, won't fill
+                    order_params = self.create_order_params(sym, direction, 'limit', adjusted_min_size)
+                order_params['px'] = str(bad_price)
+                order_id = self.place_order(order_params)
+                self.trade_client.cancel_order(instId=sym, ordId=order_id)
+                return True
+            except Exception as e:
+                error_str = str(e)
+                if '51155' in error_str or 'compliance' in error_str.lower():
+                    self.log_message(f"Пара {sym} заблокирована по compliance (ошибка 51155)")
+                    self.restricted_pairs.add(sym)
+                    return False
+                else:
+                    self.log_message(f"Ошибка проверки пары {sym} (попытка {attempt+1}): {error_str}. Retry...")
+                    time.sleep(1)  # Wait before retry
+        self.log_message(f"Проверка пары {sym} провалилась после 3 попыток. Считаем недоступной.")
+        return False
+
     def get_best_op(self, valid_ops):
         if valid_ops:
+            if self.strict:
+                valid_ops = [op for op in valid_ops if op['start_asset'] == self.strict_coin]
             return max(valid_ops, key=lambda x: x['profit_perc'])
         return None
+
+    def check_op_warm(self, op, price_map):
+        restricted = False
+        for t in op['trades']:
+            sym = t[2]  # sym из trades
+            if not self.check_pair_available(sym, t[3], price_map):  # direction = t[3]
+                restricted = True
+                break
+        if not restricted:
+            return op
+        else:
+            return None
 
     def get_norm_path(self, best_op):
         if best_op:
@@ -550,6 +594,8 @@ class CarefulArbitrageParser(MarketProcess):
             return self.get_buy_strings(amt, frm, to, sym, price, fee_rate, new_amt)
 
     def print_op(self, o, fee_rate):
+        if o is None:
+            return
         print("Путь:", " -> ".join(o['path']), f"Начало {o['start_amount']}{o['start_asset']} -> Конец {o['end_amount']:.8f}{o['start_asset']}", f"Прибыль {o['profit_perc']*100:.4f}%")
         print("Calculation steps:")
         amt = o['start_amount']
@@ -576,15 +622,19 @@ class CarefulArbitrageParser(MarketProcess):
 
     def adjust_start_balance(self, start_asset):
         if not self.production:
-            return self.deposit, True
-        available_start = self.check_balance(start_asset)
+            return self.deposit if not self.use_all_balance else float('inf'), True
+        available_start = Decimal(str(self.check_balance(start_asset)))
         if available_start == 0:
             self.log_message(f"Баланс {start_asset} равен нулю, арбитраж невозможен.")
             return 0, False
-        amt = min(available_start, self.deposit)
-        if amt < self.deposit:
-            self.log_message(f"Недостаточно {start_asset} на балансе: доступно {available_start:.8f}, требуется {self.deposit:.8f}. Используем весь доступный баланс.")
-        return amt, True
+        if self.use_all_balance:
+            amt = available_start
+            self.log_message(f"Используем весь доступный баланс {start_asset}: {amt}")
+        else:
+            amt = min(available_start, Decimal(str(self.deposit)))
+            if amt < Decimal(str(self.deposit)):
+                self.log_message(f"Недостаточно {start_asset} на балансе: доступно {available_start}, требуется {self.deposit}. Используем {amt}.")
+        return float(amt), True
 
     def fetch_current_prices(self):
         raise NotImplementedError
@@ -597,28 +647,35 @@ class CarefulArbitrageParser(MarketProcess):
         return current_ticker['sell'] if direction == 'sell' else current_ticker['buy']
 
     def validate_sim_trade(self, cycle_amt, direction, current_price, base_min_size, quote_min_size, base_increment, quote_increment, fee, frm, sym, to):
+        cycle_amt_dec = Decimal(str(cycle_amt))
+        current_price_dec = Decimal(str(current_price))
+        base_min_size_dec = Decimal(str(base_min_size))
+        quote_min_size_dec = Decimal(str(quote_min_size))
+        base_increment_dec = Decimal(str(base_increment))
+        quote_increment_dec = Decimal(str(quote_increment))
+        fee_dec = Decimal(str(fee))
         if direction == 'sell':
-            adjusted_amount = math.floor(cycle_amt / base_increment) * base_increment
-            if adjusted_amount < base_min_size:
-                self.log_message(f"Симуляция: Сумма {adjusted_amount:.8f} {frm} меньше минимального размера {base_min_size:.8f} для {sym}")
+            adjusted_amount_dec = (cycle_amt_dec / base_increment_dec).to_integral_value(rounding=ROUND_FLOOR) * base_increment_dec
+            if adjusted_amount_dec < base_min_size_dec:
+                self.log_message(f"Симуляция: Сумма {adjusted_amount_dec} {frm} меньше минимального размера {base_min_size_dec} для {sym}")
                 return None
-            expected_new_amt = adjusted_amount * current_price * (1 - fee)
-            if expected_new_amt < quote_min_size:
-                self.log_message(f"Симуляция: Ожидаемое количество {expected_new_amt:.8f} {to} меньше минимального размера {quote_min_size:.8f} для {sym}")
+            expected_new_amt_dec = adjusted_amount_dec * current_price_dec * (Decimal('1') - fee_dec)
+            if expected_new_amt_dec < quote_min_size_dec:
+                self.log_message(f"Симуляция: Ожидаемое количество {expected_new_amt_dec} {to} меньше минимального размера {quote_min_size_dec} для {sym}")
                 return None
-            return expected_new_amt
+            return float(expected_new_amt_dec)
         else:
-            max_base_amount = cycle_amt / current_price
-            adjusted_base_amount = math.floor(max_base_amount / base_increment) * base_increment
-            if adjusted_base_amount < base_min_size:
-                self.log_message(f"Симуляция: Скорректированное количество {adjusted_base_amount:.8f} {to} меньше минимального размера {base_min_size:.8f} для {sym}")
+            max_base_amount_dec = cycle_amt_dec / current_price_dec
+            adjusted_base_amount_dec = (max_base_amount_dec / base_increment_dec).to_integral_value(rounding=ROUND_FLOOR) * base_increment_dec
+            if adjusted_base_amount_dec < base_min_size_dec:
+                self.log_message(f"Симуляция: Скорректированное количество {adjusted_base_amount_dec} {to} меньше минимального размера {base_min_size_dec} для {sym}")
                 return None
-            adjusted_amount = adjusted_base_amount * current_price
-            adjusted_amount = math.floor(adjusted_amount / quote_increment) * quote_increment
-            if adjusted_amount < quote_min_size:
-                self.log_message(f"Симуляция: Скорректированная сумма {adjusted_amount:.8f} {frm} меньше минимального размера {quote_min_size:.8f} для {sym}")
+            adjusted_amount_dec = adjusted_base_amount_dec * current_price_dec
+            adjusted_amount_dec = (adjusted_amount_dec / quote_increment_dec).to_integral_value(rounding=ROUND_FLOOR) * quote_increment_dec
+            if adjusted_amount_dec < quote_min_size_dec:
+                self.log_message(f"Симуляция: Скорректированная сумма {adjusted_amount_dec} {frm} меньше минимального размера {quote_min_size_dec} для {sym}")
                 return None
-            return adjusted_base_amount * (1 - fee)
+            return float(adjusted_base_amount_dec * (Decimal('1') - fee_dec))
 
     def simulate_cycle_loop(self, best_op, amt, symbol_map, price_map, fee, current_prices):
         cycle_amt = amt
@@ -640,19 +697,19 @@ class CarefulArbitrageParser(MarketProcess):
             cycle_amt = expected_new_amt
         return cycle_amt, is_profitable, simulated_trades
 
-    def simulate_cycle(self, best_op, amt, symbol_map, price_map, fee, min_profit):
+    def simulate_cycle(self, best_op, amt, symbol_map, price_map, fee, min_profit, max_profit):
         current_prices = self.fetch_current_prices()
         if current_prices is None:
             return None, False, None, False
         cycle_amt, is_profitable, simulated_trades = self.simulate_cycle_loop(best_op, amt, symbol_map, price_map, fee, current_prices)
         if cycle_amt is None:
             return None, False, None, False
-        profit_perc = (cycle_amt / amt - 1) * 100  # Исправление: использовать текущий amt вместо self.deposit
-        if not is_profitable or profit_perc <= min_profit * 100:
-            self.log_message(f"Цикл {' -> '.join(best_op['path'])} отклонён: прогнозируемая прибыль {profit_perc:.4f}% меньше порога {min_profit * 100:.4f}% или убыточна")
+        profit_perc = (cycle_amt / amt - 1) * 100
+        if not is_profitable or min_profit * 100 >= profit_perc >= max_profit * 100:
+            self.log_message(f"Цикл {' -> '.join(best_op['path'])} отклонён: прогнозируемая прибыль {profit_perc:.4f}% меньше/выше диапазона или убыточна")
             return None, False, None, False
         self.log_message(f"Симуляция цикла успешна: прогнозируемая прибыль {profit_perc:.4f}%")
-        self.log_simulated_steps(simulated_trades, fee, amt)  # Исправление: использовать amt
+        self.log_simulated_steps(simulated_trades, fee, amt)
         return simulated_trades, is_profitable, cycle_amt, True
 
     def log_simulated_steps(self, simulated_trades, fee, initial_deposit):
@@ -765,10 +822,10 @@ class CarefulArbitrageParser(MarketProcess):
 
     def run_realtime_init(self, strict):
         fee = self.fee_rate
-        min_profit = 0.005
+        min_profit = self.min_profit
         start = 1.0
         max_len = 6
-        ops = self.find_arbitrage_cycles(fee_rate=fee, min_profit=min_profit, start_amount=start, max_cycles=200000, max_cycle_len=max_len)
+        ops = self.find_arbitrage_cycles(fee_rate=fee, min_profit=min_profit, start_amount=start, max_cycles=20000000000, max_cycle_len=max_len, max_profit=self.max_profit)
         self.update_consecutive(ops)
         valid_ops = self.find_valid_ops(ops, strict)
         best_op = self.get_best_op(valid_ops)
@@ -778,9 +835,11 @@ class CarefulArbitrageParser(MarketProcess):
         if not ops:
             self.log_message("Арбитражных возможностей не найдено (по заданному порогу).")
         else:
-            self.print_ops(ops)
+            #self.print_ops(ops)
+            pass
 
     def run_realtime_trade(self, selected_op):
+        self.possible = False
         self.log_message("Входим в режим активного трейдера")
         initial_deposit, amt, trades, valid = self.init_trade_vars(selected_op)
         out_edges, symbol_map, price_map = self.build_graph_and_prices()
@@ -789,7 +848,7 @@ class CarefulArbitrageParser(MarketProcess):
         if not valid:
             return
         self.log_message(f"Проверка прибыльности цикла: {' -> '.join(selected_op['path'])}")
-        simulated_trades, is_profitable, cycle_amt, valid = self.simulate_cycle(selected_op, amt, symbol_map, price_map, self.fee_rate, 0.000001)
+        simulated_trades, is_profitable, cycle_amt, valid = self.simulate_cycle(selected_op, amt, symbol_map, price_map, self.fee_rate, min_profit=self.min_profit, max_profit=self.max_profit)
         if not valid:
             return
         amt, trades, valid, is_profitable = self.execute_cycle(selected_op, initial_deposit, amt, trades, valid, symbol_map, price_map, self.fee_rate)
@@ -799,15 +858,19 @@ class CarefulArbitrageParser(MarketProcess):
             self.log_message("Арбитраж не выполнен из-за ошибок в транзакциях или убыточности цикла")
         norm = self.get_norm_path(selected_op)
         self.consecutive_same = [d for d in self.consecutive_same if d['path'] != norm]
-        print('falsing')
-        self.possible = False
 
     def run_realtime(self):
         ops, valid_ops, best_op = self.run_realtime_init(self.strict)
+        if best_op is not None:
+            print('best op: ')
+            self.print_op(best_op, self.fee_rate)
+        else:
+            self.log_message("Лучшая возможность арбитража не найдена.")
         self.run_realtime_print(ops)
-        high_cons_ops = [op for op in ops if self.get_cons_for_op(op) >= 2]
         consecutive_same = self.get_consecutive_for_best(best_op)
         self.log_message(f"CHECKING: consecutive_same = {consecutive_same}")
-        if consecutive_same > 3 and self.possible:
-            selected_op = max(high_cons_ops, key=lambda x: x['profit_perc'])
-            self.run_realtime_trade(selected_op)
+        out_edges, symbol_map, price_map = self.build_graph_and_prices()
+        if consecutive_same > 2 and self.possible:
+            best_op = self.check_op_warm(best_op, price_map)
+            if best_op:
+                self.run_realtime_trade(best_op)

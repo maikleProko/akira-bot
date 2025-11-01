@@ -1,10 +1,9 @@
-import time
+# okx_careful_arbitrage_parser.py
 
+import time
 import requests
 from okx import MarketData as okxMarket, Trade as okxTrade, Account as okxAccount
-
 from scenarios.parsers.arbitrage_parser.abstracts.careful_arbitrage_parser import CarefulArbitrageParser
-
 
 class OkxCarefulArbitrageParser(CarefulArbitrageParser):
     OKX_API = "https://www.okx.com"
@@ -24,7 +23,7 @@ class OkxCarefulArbitrageParser(CarefulArbitrageParser):
             self.log_message(f"Авторизация успешна. Список балансов: {accounts}")
         except Exception as e:
             self.log_message(f"Ошибка при тестировании клиентов: {str(e)}")
-            raise  # Поднимаем ошибку, чтобы прервать выполнение, если авторизация не удалась
+            raise
 
     def test_ticker(self):
         ticker_response = requests.get(f"{self.OKX_API}/api/v5/market/ticker?instId=ETH-USDT", timeout=10)
@@ -95,15 +94,19 @@ class OkxCarefulArbitrageParser(CarefulArbitrageParser):
             'sz': str(adjusted_amount)
         }
         if direction == 'sell':
-            params['tgtCcy'] = 'base_ccy'  # Не обязательно, default, но для ясности
+            params['tgtCcy'] = 'base_ccy'
         else:
-            params['tgtCcy'] = 'quote_ccy'  # Для buy: sz - сумма quote-валюты
+            params['tgtCcy'] = 'quote_ccy'
         return params
 
     def place_order(self, order_params):
+        self.log_message(f"Параметры ордера: {order_params}")
         order = self.trade_client.place_order(**order_params)
+        self.log_message(f"Полный ответ place_order: {order}")
         if order['code'] != '0':
-            raise Exception(f"Ошибка размещения ордера: {order['msg']}")
+            raise Exception(f"Ошибка размещения ордера: code={order['code']}, msg={order['msg']}, data={order.get('data', 'N/A')}")
+        if not order['data']:
+            raise Exception("Ордер размещён, но data пусто — возможно, batch issue.")
         return order['data'][0]['ordId']
 
     def monitor_order(self, symbol, order_id, direction, amount, from_asset, to_asset, expected_price, fee_rate):
@@ -119,12 +122,11 @@ class OkxCarefulArbitrageParser(CarefulArbitrageParser):
                 filled_amount = float(details['accFillSz'])
                 avg_price = float(details['avgPx'])
                 dealt_funds = filled_amount * avg_price
-                actual_price = avg_price  # Исправление: для обоих направлений actual_price = avgPx (цена сделки)
-                # Точный расчет net amount с использованием 'fee' из details
-                fee = float(details['fee'])  # fee negative, paid amount
+                actual_price = avg_price
+                fee = float(details['fee'])
                 fee_ccy = details['feeCcy']
                 if direction == 'sell':
-                    actual_amount = dealt_funds + fee if fee_ccy == to_asset else dealt_funds  # fee deducted from received
+                    actual_amount = dealt_funds + fee if fee_ccy == to_asset else dealt_funds
                 else:
                     actual_amount = filled_amount + fee if fee_ccy == to_asset else filled_amount
                 self.log_message(f"Транзакция {direction} {amount:.8f} {from_asset} -> {to_asset} завершена за {execution_time:.2f} сек.")
