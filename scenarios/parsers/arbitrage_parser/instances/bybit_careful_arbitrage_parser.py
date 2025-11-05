@@ -255,7 +255,7 @@ class BybitExchangeClient(ExchangeClient):
                 result = self.handle_check_error(e, sym)
                 if result is not None:
                     return result
-                self.logger.log_message(f"Проверка пары {sym} на доступность покупки успешна. Retry...")
+                self.logger.log_message(f"Проверка пары {sym} на доступность покупки успешна.")
                 return True
         self.logger.log_message(f"Проверка пары {sym} провалилась после 3 попыток. Считаем недоступной.")
         return False

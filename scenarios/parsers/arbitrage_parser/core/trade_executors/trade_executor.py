@@ -29,19 +29,19 @@ class TradeExecutor:
     def adjust_for_sell(self, amount, direction, base_min_size, base_increment, from_asset, symbol):
         if direction == 'sell':
             adjusted_amount, success = self.trade_validator.adjust_sell_amount(self.logger.log_message, amount, base_min_size, base_increment, from_asset, symbol)
-            if not success:
-                return None, False
+            #if not success:
+                #return None, False
             return adjusted_amount, True
         return amount, True
 
     def adjust_for_buy(self, amount, direction, quote_min_size, from_asset, symbol, current_ask_price, base_min_size, base_increment, quote_increment, to_asset):
         if direction != 'sell':
-            funds, success = self.trade_validator.adjust_buy_funds(self.logger.log_message, amount, amount, quote_min_size, from_asset, symbol)
-            if not success:
-                return None, False
+            #funds, success = self.trade_validator.adjust_buy_funds(self.logger.log_message, amount, amount, quote_min_size, from_asset, symbol)
+            #if not success:
+                #return None, False
             adjusted_amount, success = self.trade_validator.adjust_buy_amount(self.logger.log_message, funds, current_ask_price, base_min_size, base_increment, quote_increment, to_asset, symbol, amount, from_asset)
-            if not success:
-                return None, False
+            #if not success:
+                #return None, False
             return adjusted_amount, True
         return amount, True
 
