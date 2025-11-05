@@ -1,4 +1,4 @@
-# scenarios/orderbook_parser/beautifulsoup_orderbook_parse/abstracts/beautifulsoup_orderbook_parser.py
+# scenarios/orderbook_parser/beautifulsoup_orderbook_parse/core/beautifulsoup_orderbook_parser.py
 from scenarios.parsers.orderbook_parser.abstracts.depth_parser import DepthParser
 
 
