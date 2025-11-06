@@ -1,4 +1,8 @@
+import asyncio
+import json
 import time
+
+import websockets
 
 
 class TradeExecutor:
@@ -36,7 +40,7 @@ class TradeExecutor:
 
     def adjust_for_buy(self, amount, direction, quote_min_size, from_asset, symbol, current_ask_price, base_min_size, base_increment, quote_increment, to_asset):
         if direction != 'sell':
-            #funds, success = self.trade_validator.adjust_buy_funds(self.logger.log_message, amount, amount, quote_min_size, from_asset, symbol)
+            funds, success = self.trade_validator.adjust_buy_funds(self.logger.log_message, amount, amount, quote_min_size, from_asset, symbol)
             #if not success:
                 #return None, False
             adjusted_amount, success = self.trade_validator.adjust_buy_amount(self.logger.log_message, funds, current_ask_price, base_min_size, base_increment, quote_increment, to_asset, symbol, amount, from_asset)

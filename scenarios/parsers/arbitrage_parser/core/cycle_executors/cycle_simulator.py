@@ -48,9 +48,9 @@ class CycleSimulator:
         if cycle_amt is None:
             return None, False, None, False
         profit_perc = (cycle_amt / amt - 1) * 100
-        if not is_profitable or not self.check_profit_valid(profit_perc):
-            self.log_profit_rejection(profit_perc, best_op)
-            return None, False, None, False
+        #if not is_profitable or not self.check_profit_valid(profit_perc):
+            #self.log_profit_rejection(profit_perc, best_op)
+            #return None, False, None, False
         self.log_sim_success(profit_perc)
         CycleLogger(self.logger).log_simulated_steps(simulated_trades, fee, amt)
         return simulated_trades, is_profitable, cycle_amt, True

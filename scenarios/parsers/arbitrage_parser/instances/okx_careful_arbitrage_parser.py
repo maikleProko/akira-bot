@@ -82,6 +82,8 @@ class OkxExchangeClient(ExchangeClient):
             return None
         return {'sell': float(data['bidPx']), 'buy': float(data['askPx'])}
 
+
+
     def set_common_params(self, params, symbol, direction, ordType, adjusted_amount):
         side = 'sell' if direction == 'sell' else 'buy'
         params['instId'] = symbol
@@ -128,11 +130,19 @@ class OkxExchangeClient(ExchangeClient):
         response.raise_for_status()
         return response.json()['data']
 
+    def get_nullable_float(self, thing):
+        try:
+            return float(thing)
+        except:
+            return 0
+
     def build_prices_dict(self, tickers):
-        return {t['instId']: {'sell': float(t['bidPx']), 'buy': float(t['askPx'])} for t in tickers if 'bidPx' in t and 'askPx' in t}
+        return {t['instId']: {'sell': self.get_nullable_float(t['bidPx']), 'buy': self.get_nullable_float(t['askPx'])} for t in tickers if 'bidPx' in t and 'askPx' in t and t['bidPx'] != '' and t['askPx'] != ''}
 
     def fetch_current_prices(self):
+        print('1')
         tickers = self.fetch_market_prices()
+        print('2')
         if tickers is not None:
             return self.build_prices_dict(tickers)
         tickers = self.fetch_public_prices()

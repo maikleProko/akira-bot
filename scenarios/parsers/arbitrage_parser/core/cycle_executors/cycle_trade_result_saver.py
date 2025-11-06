@@ -47,6 +47,7 @@ class CycleTradeResultSaver:
                 step_amt = t[4]
             f.write("----\n")
         self.logger.log_message(f"Арбитраж завершен: начальная сумма {initial_deposit:.8f} {best_op['start_asset']}, конечная сумма {amt:.8f} {best_op['start_asset']}{' (убыточный цикл)' if not is_profitable else ''}")
+        return float(amt)
 
     def save_trade_results(self, best_op, amt, initial_deposit, trades, is_profitable, fee):
-        self.write_trade_results(best_op, amt, initial_deposit, trades, is_profitable, fee)
+        return self.write_trade_results(best_op, amt, initial_deposit, trades, is_profitable, fee)

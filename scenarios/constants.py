@@ -21,10 +21,12 @@ arbitrage_parser = BybitCarefulArbitrageParser(
     api_passphrase='Kxmb263ru-',
     strict_coin='BTC',
     strict = True,
-    min_profit=0.000005,
+    min_profit=0.005,
     max_profit=10.009,
-    fee_rate=-0.001,
+    fee_rate=0.001,
     #ignore = ['USDC', 'EUR', 'AED', 'AUD', 'USD']
+    only_once=False,
+    abusing_only_once=False
 )
 
 #MARKET PROCESSES

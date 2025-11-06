@@ -1,3 +1,4 @@
+import json
 import time
 from decimal import Decimal, ROUND_CEILING
 import requests
@@ -126,6 +127,18 @@ class BybitExchangeClient(ExchangeClient):
         ticker_data = data['result']['list'][0]
         return {'sell': float(ticker_data['bid1Price']), 'buy': float(ticker_data['ask1Price'])}
 
+    async def fetch_ticker_async(self, session, symbol):
+        url = f"{self.BYBIT_API}/v5/market/tickers?category=spot&symbol={symbol}"
+        async with session.get(url) as resp:
+            data = await resp.json()
+            if data['retCode'] != 0 or not data['result']['list']:
+                return None
+            ticker_data = data['result']['list'][0]
+            return {'name': symbol, 'sell': float(ticker_data['bid1Price']), 'buy': float(ticker_data['ask1Price'])}
+
+
+
+
     def set_common_params(self, params, symbol, direction, ordType, adjusted_amount):
         side = 'Sell' if direction == 'sell' else 'Buy'
         params['category'] = 'spot'
@@ -182,8 +195,9 @@ class BybitExchangeClient(ExchangeClient):
             raise Exception(f"Ошибка при получении тикеров: {data['retMsg']}")
         return data['result']['list']
 
+
     def build_prices_dict(self, tickers):
-        return {t['symbol']: {'sell': float(t['bid1Price']), 'buy': float(t['ask1Price'])} for t in tickers if 'bid1Price' in t and 'ask1Price' in t}
+        return {t['symbol']: {'sell': float(t['bid1Price']), 'buy': float(t['ask1Price'])} for t in tickers if 'bid1Price' in t and 'ask1Price' in t and t['bid1Price'] != '' and t['ask1Price'] != ''}
 
     def fetch_current_prices(self):
         tickers = self.fetch_market_prices()

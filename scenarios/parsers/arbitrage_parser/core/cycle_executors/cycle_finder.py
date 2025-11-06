@@ -95,21 +95,22 @@ class CycleFinder:
 
     def add_opportunity_if_valid(self, valid, ignore_cycle, min_profit, max_profit, opportunities, cycle_nodes, start_amount, amt, trades):
         if not valid or ignore_cycle:
-            return
+            return False
         profit, profit_perc = self.calculate_profit(amt, start_amount)
         if not self.check_profit_range(profit_perc, min_profit, max_profit):
-            return
+            return False
         opp = self.create_opportunity(cycle_nodes, start_amount, amt, profit, profit_perc, trades)
         opportunities.append(opp)
+        return True
 
     def process_cycle_if_new(self, current_path, seen_cycles, start_amount, symbol_map, price_map, fee_rate, ignored_symbols, min_profit, max_profit, opportunities):
         cycle_nodes = current_path[:]
         seen, norm = self.normalize_and_check_seen(cycle_nodes, seen_cycles)
         if seen:
-            return
+            return False
         amt, trades, valid = self.process_cycle_trades(cycle_nodes, start_amount, symbol_map, price_map, fee_rate)
         ignore_cycle = self.check_ignore_cycle(cycle_nodes, ignored_symbols)
-        self.add_opportunity_if_valid(valid, ignore_cycle, min_profit, max_profit, opportunities, cycle_nodes, start_amount, amt, trades)
+        return self.add_opportunity_if_valid(valid, ignore_cycle, min_profit, max_profit, opportunities, cycle_nodes, start_amount, amt, trades)
 
     def increment_checked(self, checked, max_cycles, stop_flag):
         checked += 1
@@ -136,7 +137,7 @@ class CycleFinder:
         if stop_flag:
             return checked, stop_flag
         if self.check_cycle_len(current_path) and self.check_start_neighbor(start, current, out_edges):
-            self.process_cycle_if_new(current_path, seen_cycles, self.start_amount, symbol_map, price_map, fee_rate, ignored_symbols, min_profit, max_profit, opportunities)
+            stop_flag = self.process_cycle_if_new(current_path, seen_cycles, self.start_amount, symbol_map, price_map, fee_rate, ignored_symbols, min_profit, max_profit, opportunities)
             checked, stop_flag = self.increment_checked(checked, max_cycles, stop_flag)
             if stop_flag:
                 return checked, stop_flag

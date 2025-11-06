@@ -11,7 +11,7 @@ from utils.core.functions import MarketProcess
 
 
 class CarefulArbitrageParser(MarketProcess):
-    def __init__(self, deposit=0.0001, production=True, api_key=None, api_secret=None, api_passphrase=None, strict=False, strict_coin='USDT', fee_rate=0.001, min_profit=0.005, use_all_balance=True, max_profit = 100.0, ignore=None):
+    def __init__(self, deposit=0.0001, production=True, api_key=None, api_secret=None, api_passphrase=None, strict=False, strict_coin='USDT', fee_rate=0.001, min_profit=0.005, use_all_balance=True, max_profit = 100.0, ignore=None, only_once = True, abusing_only_once = True):
         if ignore is None:
             ignore = []
         self.deposit = deposit
@@ -27,12 +27,13 @@ class CarefulArbitrageParser(MarketProcess):
         self.possible = True
         self.ignored_symbols = frozenset([])
         self.logger = Logger()
+        self.only_once = only_once
         self.exchange_client = self.create_exchange_client(self.logger)
         self.graph_builder = GraphBuilder(self.exchange_client, self.ignore, None, self.logger)
         self.cycle_finder = CycleFinder(self.logger)
         self.trade_validator = TradeValidator()
         self.trade_executor = TradeExecutor(self.exchange_client, self.trade_validator, self.logger, self.production)
-        self.cycle_executor = CycleExecutor(self.cycle_finder, self.trade_executor, self.trade_validator, self.exchange_client, self.logger, self.production, self.use_all_balance, self.deposit, self.fee_rate, self.min_profit, self.max_profit)
+        self.cycle_executor = CycleExecutor(self.cycle_finder, self.trade_executor, self.trade_validator, self.exchange_client, self.logger, self.production, self.use_all_balance, self.deposit, self.fee_rate, self.min_profit, self.max_profit, abusing_only_once)
         self.has_api = False
         self.available_coins = None
         self.init_api(api_key, api_secret, api_passphrase)
@@ -216,7 +217,8 @@ class CarefulArbitrageParser(MarketProcess):
             pass
 
     def prepare_trade(self, selected_op, out_edges, symbol_map, price_map, start_asset):
-        self.possible = False
+        if self.only_once:
+            self.possible = False
         self.logger.log_message("Входим в режим активного трейдинга")
         initial_deposit, amt, trades, valid = self.init_trade_vars(selected_op)
         amt, valid = self.cycle_executor.adjust_start_balance(start_asset)
@@ -231,7 +233,7 @@ class CarefulArbitrageParser(MarketProcess):
     def execute_and_save_trade(self, selected_op, initial_deposit, amt, trades, valid, is_profitable, symbol_map, price_map):
         amt, trades, valid, is_profitable = self.cycle_executor.execute_cycle(selected_op, initial_deposit, amt, trades, valid, symbol_map, price_map, self.fee_rate)
         if valid:
-            self.cycle_executor.save_trade_results(selected_op, amt, initial_deposit, trades, is_profitable, self.fee_rate)
+            self.deposit = self.cycle_executor.save_trade_results(selected_op, amt, initial_deposit, trades, is_profitable, self.fee_rate)
         else:
             self.logger.log_message("Арбитраж не выполнен из-за ошибок в транзакциях или убыточности цикла")
 

@@ -1,5 +1,6 @@
+import asyncio
 import time
-
+import aiohttp
 from scenarios.parsers.arbitrage_parser.core.cycle_executors.cycle_price_fetcher import CyclePriceFetcher
 from scenarios.parsers.arbitrage_parser.core.cycle_executors.cycle_simulator import CycleSimulator
 from scenarios.parsers.arbitrage_parser.core.cycle_executors.cycle_start_balance_adjuster import \
@@ -9,7 +10,7 @@ from scenarios.parsers.arbitrage_parser.core.cycle_executors.cycle_logger import
 
 
 class CycleExecutor:
-    def __init__(self, cycle_finder, trade_executor, trade_validator, exchange_client, logger, production, use_all_balance, deposit, fee_rate, min_profit, max_profit):
+    def __init__(self, cycle_finder, trade_executor, trade_validator, exchange_client, logger, production, use_all_balance, deposit, fee_rate, min_profit, max_profit, only_once):
         self.cycle_finder = cycle_finder
         self.trade_executor = trade_executor
         self.trade_validator = trade_validator
@@ -21,6 +22,7 @@ class CycleExecutor:
         self.fee_rate = fee_rate
         self.min_profit = min_profit
         self.max_profit = max_profit
+        self.only_once = only_once
         self.balance_adjuster = CycleStartBalanceAdjuster(exchange_client, logger, production, use_all_balance, deposit)
         self.simulator = CycleSimulator(cycle_finder, trade_validator, logger, min_profit, max_profit, exchange_client)
         self.cycle_logger = CycleLogger(logger)
@@ -49,7 +51,7 @@ class CycleExecutor:
 
     def fetch_ticker_and_price(self, sym, direction):
         current_ticker = self.exchange_client.fetch_ticker_price(sym)
-        self.logger.log_message(f"Raw ticker response для {sym}: {current_ticker}")
+        self.logger.log_message(f"{sym}: {current_ticker}")
         if current_ticker is None or 'buy' not in current_ticker or 'sell' not in current_ticker:
             self.logger.log_message(f"Ошибка: Недопустимый ответ API для {sym}, пропускаем транзакцию")
             return None, None
@@ -114,8 +116,63 @@ class CycleExecutor:
         return amt, trades, valid, is_profitable
 
     def execute_cycle(self, best_op, initial_deposit, amt, trades, valid, symbol_map, price_map, fee):
-        amt, trades, valid, is_profitable = self.execute_cycle_loop(best_op, amt, trades, valid, symbol_map, price_map, fee)
+        self.deposit = initial_deposit
+        amt, trades, valid, is_profitable = self.abuse(best_op, amt, trades, valid, symbol_map, price_map, fee)
         return amt, trades, valid, is_profitable
 
+    ###
+
     def save_trade_results(self, best_op, amt, initial_deposit, trades, is_profitable, fee):
-        self.result_saver.save_trade_results(best_op, amt, initial_deposit, trades, is_profitable, fee)
+        return self.result_saver.save_trade_results(best_op, amt, initial_deposit, trades, is_profitable, fee)
+
+
+
+    async def async_all_ticker_and_price(self, op):
+        symbols = [trade[2] for trade in op['trades']]
+        async with aiohttp.ClientSession() as session:
+            tasks = [self.exchange_client.fetch_ticker_async(session, sym) for sym in symbols]
+            results = await asyncio.gather(*tasks)
+        return [res for res in results if res is not None]
+
+
+    def fast_estimate(self, op_info, op):
+        op_info_dict = {d['name']: d for d in op_info}
+        amt = op['start_amount']
+        for trade in op['trades']:
+            sym = trade[2]
+            direction = trade[3]
+            prices = op_info_dict.get(sym)
+            if prices is None:
+                return 0.0
+            price = prices['sell'] if direction == 'sell' else prices['buy']
+            if direction == 'sell':
+                amt = amt * price * (1 - self.fee_rate)
+            else:
+                amt = (amt / price) * (1 - self.fee_rate)
+        profit_perc = (amt / op['start_amount'] - 1) * 100
+        return profit_perc
+
+    def abuse(self, best_op, amt, trades, valid, symbol_map, price_map, fee):
+        start_time = time.time()
+        is_profitable = None
+        print('ABUZING MODE BEGIN')
+        while time.time() - start_time < 300:
+            prices = asyncio.run(self.async_all_ticker_and_price(best_op))
+            estimate = self.fast_estimate(prices, best_op)
+            if estimate > self.min_profit:
+                amt, trades, valid, is_profitable = self.execute_cycle_loop(best_op, amt, trades, valid, symbol_map, price_map, fee)
+
+                if valid:
+                    self.deposit = self.save_trade_results(best_op, amt, self.deposit, trades, is_profitable, self.fee_rate)
+                else:
+                    self.logger.log_message("Арбитраж не выполнен из-за ошибок в транзакциях или убыточности цикла")
+
+                if self.only_once:
+                    break
+            else:
+                time.sleep(0.5)
+        print('ABUZING MODE END')
+        return amt, trades, valid, is_profitable
+
+
+
