@@ -152,7 +152,7 @@ class BybitExchangeClient(ExchangeClient):
             if direction == 'sell':
                 params['qty'] = str(adjusted_amount)
             else:
-                params['quoteCoinQty'] = str(adjusted_amount)
+                params['qty'] = str(adjusted_amount)
         else:
             params['qty'] = str(adjusted_amount)
 
