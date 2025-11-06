@@ -8,7 +8,7 @@ class SellAmountAdjustmentPattern(ValidationPattern):
         self.logger = logger
 
     def floor_adjust_amount(self, amount_dec, base_increment_dec):
-        return (amount_dec / base_increment_dec).to_integral_value(rounding=ROUND_FLOOR) * base_increment_dec
+        return (amount_dec / base_increment_dec).to_integral_value(rounding=ROUND_FLOOR) * Decimal(base_increment_dec)
 
     def check_min_size(self, adjusted_amount_dec, base_min_size_dec):
         return adjusted_amount_dec >= base_min_size_dec
@@ -37,7 +37,7 @@ class SellAmountAdjustmentPattern(ValidationPattern):
             self.log_zero_amount_error(adjusted_amount_dec, from_asset, symbol)
             return 0, False
         self.log_adjusted_amount(adjusted_amount_dec, from_asset, base_increment_dec)
-        return float(adjusted_amount_dec), True
+        return Decimal(adjusted_amount_dec), True
 
     def validate(self, amount, base_min_size, base_increment, from_asset, symbol):
         return self.adjust_sell_amount(amount, base_min_size, base_increment, from_asset, symbol)

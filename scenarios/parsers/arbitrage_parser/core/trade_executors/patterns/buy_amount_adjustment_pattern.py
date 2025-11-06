@@ -11,7 +11,7 @@ class BuyAmountAdjustmentPattern(ValidationPattern):
         return funds_dec / current_ask_price_dec
 
     def floor_adjust_base(self, max_base_amount_dec, base_increment_dec):
-        return (max_base_amount_dec / base_increment_dec).to_integral_value(rounding=ROUND_FLOOR) * base_increment_dec
+        return (max_base_amount_dec / base_increment_dec).to_integral_value(rounding=ROUND_FLOOR) * Decimal(base_increment_dec)
 
     def check_min_base(self, adjusted_base_amount_dec, base_min_size_dec):
         return adjusted_base_amount_dec >= base_min_size_dec
@@ -20,10 +20,10 @@ class BuyAmountAdjustmentPattern(ValidationPattern):
         self.logger.log_message(f"Ошибка: Скорректированное количество {adjusted_base_amount_dec} {to_asset} меньше минимального размера {base_min_size_dec} для {symbol}")
 
     def calculate_adjusted_amount(self, adjusted_base_amount_dec, current_ask_price_dec):
-        return adjusted_base_amount_dec * current_ask_price_dec
+        return Decimal(adjusted_base_amount_dec) * Decimal(current_ask_price_dec)
 
     def floor_adjust_amount(self, adjusted_amount_dec, quote_increment_dec):
-        return (adjusted_amount_dec / quote_increment_dec).to_integral_value(rounding=ROUND_FLOOR) * quote_increment_dec
+        return (adjusted_amount_dec / quote_increment_dec).to_integral_value(rounding=ROUND_FLOOR) * Decimal(quote_increment_dec)
 
     def check_positive_amount(self, adjusted_amount_dec):
         return adjusted_amount_dec > 0

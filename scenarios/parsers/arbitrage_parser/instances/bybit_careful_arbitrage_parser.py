@@ -1,4 +1,3 @@
-import json
 import time
 from decimal import Decimal, ROUND_CEILING
 import requests
@@ -9,6 +8,7 @@ from scenarios.parsers.arbitrage_parser.core.utils.exchange_client import Exchan
 
 class BybitExchangeClient(ExchangeClient):
     BYBIT_API = "https://api.bybit.com"
+    BYBIT_WS = "wss://ws.bybit.com/v5/public/spot"
 
     def __init__(self, logger):
         self.session = None
@@ -24,7 +24,7 @@ class BybitExchangeClient(ExchangeClient):
         balance = self.session.get_wallet_balance(accountType="UNIFIED")
         if balance['retCode'] != 0:
             raise Exception(f"Ошибка авторизации API: {balance['retMsg']}")
-        if not balance['result']:
+        if not balance['result']['list']:
             raise Exception("Тестовый запрос API для балансов вернул пустой список (возможно, неверные ключи)")
         return balance
 
@@ -114,8 +114,9 @@ class BybitExchangeClient(ExchangeClient):
         balance = self.session.get_wallet_balance(accountType="UNIFIED", coin=asset)
         if balance['retCode'] != 0:
             raise Exception(f"Ошибка API: {balance['retMsg']}")
-        if balance['result']['balances']:
-            return float(balance['result']['balances'][0]['availableBalance'])
+        if balance['result']['list'] and balance['result']['list'][0]['coin'][0]['walletBalance']:
+            return float(balance['result']['list'][0]['coin'][0]['walletBalance'])
+        print('eps')
         return 0.0
 
     def fetch_ticker_price(self, symbol):
