@@ -119,7 +119,7 @@ class GraphBuilder:
         try:
             return self.process_ticker_try(sym, base, quote, base_min_size, quote_min_size, base_increment, quote_increment, ticker_map)
         except Exception as e:
-            self.logger.log_message(f"Ошибка при обработке цены для {sym}: {str(e)}")
+            #self.logger.log_message(f"Ошибка при обработке цены для {sym}: {str(e)}")
             return None
 
     def init_graph_structures(self):

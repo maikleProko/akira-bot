@@ -1,5 +1,4 @@
 from scenarios.parsers.arbitrage_parser.instances.bybit_careful_arbitrage_parser import BybitCarefulArbitrageParser
-from scenarios.parsers.arbitrage_parser.instances.okx_careful_arbitrage_parser import OkxCarefulArbitrageParser
 
 #SYMBOLS
 symbol1 = 'BTC'
@@ -15,7 +14,7 @@ end_time_string='2025/10/22 15:55'
 
 arbitrage_parser = BybitCarefulArbitrageParser(
     production=True,
-    deposit=0.00061172,
+    deposit=0.00011,
     api_key='',
     api_secret='',
     api_passphrase='-1',

@@ -19,11 +19,8 @@ def periodic(trigger='cron', **trigger_args):
 
             def job_wrapper():
                 try:
-                    print(f'------------')
-                    print(f'------------')
-                    print(f'------------')
-                    print(f'------------')
-                    print(f'[run] TICK RUN AT {datetime.now()}')
+                    print(f' ')
+                    #print(f'[run] TICK RUN AT {datetime.now()}')
                     func(*args, **kwargs)
                 except Exception as e:
                     # логируем ошибку, но не останавливаем планировщик
@@ -54,11 +51,8 @@ def fast_periodic():
             try:
                 while True:
                     try:
-                        print(f'------------')
-                        print(f'------------')
-                        print(f'------------')
-                        print(f'------------')
-                        print(f'[run] TICK RUN AT {datetime.now()}')
+                        print(f' ')
+                        #print(f'[run] TICK RUN AT {datetime.now()}')
                         func(*args, **kwargs)
                     except Exception as e:
                         # логируем ошибку, но не останавливаем цикл

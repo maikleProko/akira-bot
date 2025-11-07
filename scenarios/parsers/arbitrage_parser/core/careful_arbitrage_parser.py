@@ -11,7 +11,7 @@ from utils.core.functions import MarketProcess
 
 
 class CarefulArbitrageParser(MarketProcess):
-    def __init__(self, deposit=0.0001, production=True, api_key=None, api_secret=None, api_passphrase=None, strict=False, strict_coin='USDT', fee_rate=0.001, min_profit=0.005, use_all_balance=True, max_profit = 100.0, ignore=None, only_once = True, abusing_only_once = True):
+    def __init__(self, deposit=0.0001, production=True, api_key=None, api_secret=None, api_passphrase=None, strict=False, strict_coin='USDT', fee_rate=0.001, min_profit=0.005, use_all_balance=False, max_profit = 100.0, ignore=None, only_once = True, abusing_only_once = True):
         if ignore is None:
             ignore = []
         self.deposit = deposit
@@ -31,7 +31,7 @@ class CarefulArbitrageParser(MarketProcess):
         self.exchange_client = self.create_exchange_client(self.logger)
         self.graph_builder = GraphBuilder(self.exchange_client, self.ignore, None, self.logger)
         self.cycle_finder = CycleFinder(self.logger)
-        self.trade_validator = TradeValidator()
+        self.trade_validator = TradeValidator(self.exchange_client)
         self.trade_executor = TradeExecutor(self.exchange_client, self.trade_validator, self.logger, self.production)
         self.cycle_executor = CycleExecutor(self.cycle_finder, self.trade_executor, self.trade_validator, self.exchange_client, self.logger, self.production, self.use_all_balance, self.deposit, self.fee_rate, self.min_profit, self.max_profit, abusing_only_once)
         self.has_api = False
@@ -167,9 +167,16 @@ class CarefulArbitrageParser(MarketProcess):
             amt = t[4]
         print("----")
 
+    def fill_local_balances(self, best_op):
+        self.exchange_client.local_balances = {}
+        if best_op and best_op['trades']:
+            for t in best_op['trades']:
+                self.exchange_client.local_balances[t[0]] = self.exchange_client.check_balance(t[0])
+
     def print_op(self, o, fee_rate):
         if o is None:
             return
+        print(o)
         self.print_op_path(o)
         self.print_calc_header()
         self.print_trade_steps(o, fee_rate)
@@ -223,12 +230,12 @@ class CarefulArbitrageParser(MarketProcess):
         initial_deposit, amt, trades, valid = self.init_trade_vars(selected_op)
         amt, valid = self.cycle_executor.adjust_start_balance(start_asset)
         if not valid:
-            return
+            return'''
         self.logger.log_message(f"Проверка прибыльности цикла: {' -> '.join(selected_op['path'])}")
         simulated_trades, is_profitable, cycle_amt, valid = self.cycle_executor.simulate_cycle(selected_op, amt, symbol_map, price_map, self.fee_rate)
         if not valid:
-            return
-        return initial_deposit, amt, trades, valid, is_profitable
+            return'''
+        return initial_deposit, amt, trades, valid, True
 
     def execute_and_save_trade(self, selected_op, initial_deposit, amt, trades, valid, is_profitable, symbol_map, price_map):
         amt, trades, valid, is_profitable = self.cycle_executor.execute_cycle(selected_op, initial_deposit, amt, trades, valid, symbol_map, price_map, self.fee_rate)
@@ -253,19 +260,27 @@ class CarefulArbitrageParser(MarketProcess):
     def log_best_op(self, best_op):
         if best_op is not None:
             print('best op: ')
+            self.trade_validator.best_op = best_op
             self.print_op(best_op, self.fee_rate)
+            self.fill_local_balances(best_op)
         else:
             self.logger.log_message("Лучшая возможность арбитража не найдена.")
+
+    def update_best_op(self, best_op):
+        if best_op is not None:
+            print('best op: ')
+            self.trade_validator.best_op = best_op
+            self.fill_local_balances(best_op)
 
     def check_consecutive_threshold(self, consecutive_same):
         return consecutive_same > 0
 
     def run_realtime(self):
         ops, valid_ops, best_op = self.run_realtime_init(self.strict)
-        self.log_best_op(best_op)
+        self.update_best_op(best_op)
         self.run_realtime_print(ops)
         consecutive_same = self.get_consecutive_for_best(best_op)
-        self.logger.log_message(f"CHECKING: consecutive_same = {consecutive_same}")
+        #self.logger.log_message(f"CHECKING: consecutive_same = {consecutive_same}")
         out_edges, symbol_map, price_map = self.build_graph_and_prices()
         if self.check_consecutive_threshold(consecutive_same) and self.possible:
             best_op = self.check_op_warm(best_op, price_map)

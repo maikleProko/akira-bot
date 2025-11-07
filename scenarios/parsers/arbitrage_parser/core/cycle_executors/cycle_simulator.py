@@ -21,7 +21,7 @@ class CycleSimulator:
             new_amt, sym, direction, price = self.cycle_finder.convert_amount(cycle_amt, frm, to, symbol_map, price_map, fee)
             if new_amt is None:
                 self.logger.log_message(f"Симуляция: Транзакция {frm} -> {to} невозможна из-за ограничений минимального размера или точности")
-                return None, False, None
+                #return None, False, None
             current_price = CyclePriceFetcher(self.exchange_client, self.logger).get_current_price(sym, direction, current_prices, price_map)
             base_min_size, quote_min_size, base_increment, quote_increment = self.trade_validator.get_cycle_constraints(sym, price_map)
             expected_new_amt = self.trade_validator.validate_sim_trade(cycle_amt, direction, current_price, base_min_size, quote_min_size, base_increment, quote_increment, fee, frm, sym, to, self.logger.log_message)

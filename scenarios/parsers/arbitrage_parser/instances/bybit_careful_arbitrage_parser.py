@@ -1,3 +1,4 @@
+from datetime import datetime
 import time
 from decimal import Decimal, ROUND_CEILING
 import requests
@@ -14,6 +15,7 @@ class BybitExchangeClient(ExchangeClient):
         self.session = None
         self.logger = logger
         self.restricted_pairs = set()
+        self.local_balances = {}
 
     def init_clients(self, api_key, api_secret, api_passphrase):
         self.session = HTTP(api_key=api_key, api_secret=api_secret)
@@ -60,7 +62,7 @@ class BybitExchangeClient(ExchangeClient):
         return normalized
 
     def fetch_symbols(self):
-        print("Запрашиваю данные с Bybit... (может занять пару секунд)")
+        print(f"{datetime.now()} Запрашиваю данные с Bybit... (может занять пару секунд)")
         if self.session:
             response = self.session.get_instruments_info(category="spot")
             if response['retCode'] != 0:
@@ -296,6 +298,10 @@ class BybitExchangeClient(ExchangeClient):
         return Decimal(amount / expected_price) * Decimal(1 - fee_rate)
 
     def monitor_order_loop(self, symbol, order_id, direction, amount, from_asset, to_asset, expected_price, fee_rate, start_time):
+        order_details = None
+        actual_amount = 0
+        avg_price = 0
+
         while time.time() - start_time < 5:
             order_details = self.get_order_details(symbol, order_id)
             if order_details['retCode'] != 0 or not order_details['result']:
@@ -308,12 +314,21 @@ class BybitExchangeClient(ExchangeClient):
                     avg_price = float(details['avgPrice'])
                     actual_amount = self.check_order_filled(details, direction, to_asset)
                     expected_amount = self.calculate_expected_amount(direction, amount, expected_price, fee_rate, to_asset)
+                    real_amount = float(self.check_balance(to_asset))
+                    previous_amount = float(self.local_balances[to_asset])
+                    real_converted_amount = real_amount - previous_amount
+
                     self.log_successful_trade(execution_time, direction, amount, from_asset, to_asset, expected_price, avg_price, expected_amount, actual_amount, fee_rate)
+
+                    self.logger.log_message(f"А теперь реальное количество: {str(real_converted_amount)}. Сумма: {str(previous_amount)} + {str(real_converted_amount)} = {str(real_amount)}")
                     return actual_amount, True, avg_price
             time.sleep(0.1)
-        self.logger.log_message(f"Транзакция {direction} {amount:.8f} {from_asset} -> {to_asset} не завершилась за 5 секунд, отменяется.")
-        self.cancel_order(symbol, order_id)
-        return None, False, 0
+        if order_details and order_details['result'] and order_details['result']['list'] and len(order_details['result']['list']) > 0:
+            return actual_amount, True, avg_price
+        else:
+            self.logger.log_message(f"Транзакция {direction} {amount:.8f} {from_asset} -> {to_asset} не завершилась за 5 секунд, отменяется.")
+            self.cancel_order(symbol, order_id)
+            return None, False, 0
 
     def monitor_order(self, symbol, order_id, direction, amount, from_asset, to_asset, expected_price, fee_rate):
         start_time = time.time()

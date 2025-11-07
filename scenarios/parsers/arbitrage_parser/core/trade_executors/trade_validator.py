@@ -18,11 +18,13 @@ from scenarios.parsers.arbitrage_parser.core.utils.logger import Logger
 
 
 class TradeValidator:
-    def __init__(self):
+    def __init__(self, exchange_client):
         self.symbol_strategy = SymbolValidationPattern()
         self.constraint_strategy = ConstraintValidationPattern()
         self.trade_constraint_strategy = TradeConstraintValidationPattern()
         self.sim_trade_strategy = SimTradeValidationPattern(Logger())
+        self.best_op = None
+        self.exchange_client = exchange_client
 
     def validate_symbol(self, symbol, price_map):
         return self.symbol_strategy.validate(symbol, price_map)
@@ -40,17 +42,17 @@ class TradeValidator:
         strategy = BalanceAdjustmentPattern(Logger())
         return strategy.validate(check_balance, from_asset, amount, production)
 
-    def adjust_sell_amount(self, log_message, amount, base_min_size, base_increment, from_asset, symbol):
+    def adjust_sell_amount(self, log_message, amount, base_min_size, base_increment, from_asset, symbol, adjusted_amount_mode):
         strategy = SellAmountAdjustmentPattern(Logger())
-        return strategy.validate(amount, base_min_size, base_increment, from_asset, symbol)
+        return strategy.validate(amount, base_min_size, base_increment, from_asset, symbol, adjusted_amount_mode, self.exchange_client, self.best_op)
 
     def adjust_buy_funds(self, log_message, amount, available, quote_min_size, from_asset, symbol):
         strategy = BuyFundsAdjustmentPattern(Logger())
         return strategy.validate(amount, available, quote_min_size, from_asset, symbol)
 
-    def adjust_buy_amount(self, log_message, funds, current_ask_price, base_min_size, base_increment, quote_increment, to_asset, symbol, available, from_asset):
+    def adjust_buy_amount(self, log_message, funds, current_ask_price, base_min_size, base_increment, quote_increment, to_asset, symbol, available, from_asset, adjusted_amount_mode):
         strategy = BuyAmountAdjustmentPattern(Logger())
-        return strategy.validate(funds, current_ask_price, base_min_size, base_increment, quote_increment, to_asset, symbol, available, from_asset)
+        return strategy.validate(funds, current_ask_price, base_min_size, base_increment, quote_increment, to_asset, symbol, available, from_asset, adjusted_amount_mode, self.exchange_client, self.best_op)
 
     def validate_trade_constraints(self, amt, direction, price, base_min_size, quote_min_size, base_increment, quote_increment, fee_rate, frm, to, sym):
         return self.trade_constraint_strategy.validate(amt, direction, price, base_min_size, quote_min_size, base_increment, quote_increment, fee_rate, frm, to, sym)
