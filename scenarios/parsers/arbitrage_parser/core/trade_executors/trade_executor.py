@@ -1,6 +1,7 @@
 import asyncio
 import json
 import time
+import traceback
 
 import websockets
 
@@ -67,7 +68,25 @@ class TradeExecutor:
             self.logger.log_message(f"Размещен ордер {order_id} для {direction} {adjusted_amount:.8f} {from_asset} -> {to_asset}")
             return self.exchange_client.monitor_order(symbol, order_id, direction, adjusted_amount, from_asset, to_asset, expected_price, fee_rate)
         except Exception as e:
+            # Полный стек в текстовом виде
+            full_trace = traceback.format_exc()
+
+            # Информация о последнем фрейме traceback: файл, строка, функция, код
+            tb_list = traceback.extract_tb(e.__traceback__)
+            if tb_list:
+                last_frame = tb_list[-1]
+                file_name = last_frame.filename
+                line_no = last_frame.lineno
+                func_name = last_frame.name
+                code_line = (last_frame.line or '').strip()
+                location_info = f"{file_name}:{line_no} in {func_name} -> {code_line}"
+            else:
+                location_info = "Traceback frames not available"
+
+            # Логирование с деталями
             self.logger.log_message(f"Ошибка при выполнении транзакции {direction} {amount:.8f} {from_asset} -> {to_asset}: {str(e)}")
+            self.logger.log_message(f"Место ошибки: {location_info}")
+            self.logger.log_message("Полный стек вызовов:\n" + full_trace)
             self.logger.log_message(f"Ограничения для {symbol}: base_min_size={base_min_size:.8f}, quote_min_size={quote_min_size:.8f}, base_increment={base_increment:.8f}, quote_increment={quote_increment:.8f}")
             return None, False
 

@@ -21,10 +21,10 @@ arbitrage_parser = BybitCarefulArbitrageParser(
     api_passphrase='-1',
     strict_coin='BTC',
     strict = True,
-    min_profit=0.001,
+    min_profit=0.006,
     max_profit=10.009,
-    fee_rate=-0.001,
-    #ignore = ['USDC', 'EUR', 'AED', 'AUD', 'USD']
+    fee_rate=0.001,
+    ignore = ['RLUSD'],
     only_once=True,
     abusing_only_once=True
 )

@@ -292,27 +292,28 @@ class BybitExchangeClient(ExchangeClient):
 
     def calculate_expected_amount(self, direction, amount, expected_price, fee_rate, to_asset):
         if direction == 'sell':
-            return amount * expected_price * (1 - fee_rate)
-        return (amount / expected_price) * (1 - fee_rate)
+            return Decimal(amount) * Decimal(expected_price) * Decimal(1 - fee_rate)
+        return Decimal(amount / expected_price) * Decimal(1 - fee_rate)
 
     def monitor_order_loop(self, symbol, order_id, direction, amount, from_asset, to_asset, expected_price, fee_rate, start_time):
         while time.time() - start_time < 5:
             order_details = self.get_order_details(symbol, order_id)
             if order_details['retCode'] != 0 or not order_details['result']:
                 self.logger.log_message(f"Ошибка: get_order для {order_id} вернул ошибку")
-                return None, False
-            details = order_details['result'][0]
-            if details['orderStatus'] == 'Filled':
-                execution_time = time.time() - start_time
-                avg_price = float(details['avgPrice'])
-                actual_amount = self.check_order_filled(details, direction, to_asset)
-                expected_amount = self.calculate_expected_amount(direction, amount, expected_price, fee_rate, to_asset)
-                self.log_successful_trade(execution_time, direction, amount, from_asset, to_asset, expected_price, avg_price, expected_amount, actual_amount, fee_rate)
-                return actual_amount, True
+                return None, False, 0
+            if len(order_details['result']['list']) > 0:
+                details = order_details['result']['list'][0]
+                if details['orderStatus'] == 'Filled':
+                    execution_time = time.time() - start_time
+                    avg_price = float(details['avgPrice'])
+                    actual_amount = self.check_order_filled(details, direction, to_asset)
+                    expected_amount = self.calculate_expected_amount(direction, amount, expected_price, fee_rate, to_asset)
+                    self.log_successful_trade(execution_time, direction, amount, from_asset, to_asset, expected_price, avg_price, expected_amount, actual_amount, fee_rate)
+                    return actual_amount, True, avg_price
             time.sleep(0.1)
         self.logger.log_message(f"Транзакция {direction} {amount:.8f} {from_asset} -> {to_asset} не завершилась за 5 секунд, отменяется.")
         self.cancel_order(symbol, order_id)
-        return None, False
+        return None, False, 0
 
     def monitor_order(self, symbol, order_id, direction, amount, from_asset, to_asset, expected_price, fee_rate):
         start_time = time.time()

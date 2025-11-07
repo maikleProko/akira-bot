@@ -83,7 +83,7 @@ class CycleExecutor:
             amt, success = self.adjust_for_insufficient_balance(frm, amt, fee, symbol_map, price_map, to)
             if not success:
                 return None, False
-            actual_amount, success = self.trade_executor.execute_trade(frm, to, amt, sym, direction, price, fee, price_map)
+            actual_amount, success, current_price = self.trade_executor.execute_trade(frm, to, amt, sym, direction, price, fee, price_map)
             if not success:
                 return None, False
             new_amt = actual_amount
