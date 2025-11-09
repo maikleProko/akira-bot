@@ -65,12 +65,12 @@ class TradeExecutor:
                     return None, False
             order_params = self.exchange_client.create_order_params(symbol, direction, 'market', adjusted_amount)
             order_id = self.exchange_client.place_order(order_params)
-            self.logger.log_message(f"Размещен ордер {order_id} для {direction} {adjusted_amount:.8f} {from_asset} -> {to_asset}")
+            #self.logger.log_message(f"Размещен ордер {order_id} для {direction} {adjusted_amount:.8f} {from_asset} -> {to_asset}")
             return self.exchange_client.monitor_order(symbol, order_id, direction, adjusted_amount, from_asset, to_asset, expected_price, fee_rate)
         except Exception as e:
             if adjusted_amount_mode < 2:
                 adjusted_amount_mode += 1
-                self.logger.log_message(f"Ошибка при выполнении транзакции {direction} {amount:.8f} {from_asset} -> {to_asset}: {str(e)}, корректировка: {str(adjusted_amount_mode)}")
+                #self.logger.log_message(f"Ошибка при выполнении транзакции {direction} {amount:.8f} {from_asset} -> {to_asset}: {str(e)}, корректировка: {str(adjusted_amount_mode)}")
                 return self.execute_trade_prod(from_asset, to_asset, amount, symbol, direction, expected_price, fee_rate, price_map, base_min_size, quote_min_size, base_increment, quote_increment, ask_price, adjusted_amount_mode + 1)
             else:
                 # Полный стек в текстовом виде
@@ -89,16 +89,17 @@ class TradeExecutor:
                     location_info = "Traceback frames not available"
 
                 # Логирование с деталями
-                self.logger.log_message(f"Ошибка при выполнении транзакции {direction} {amount:.8f} {from_asset} -> {to_asset}: {str(e)}")
+                #self.logger.log_message(f"Ошибка при выполнении транзакции {direction} {amount:.8f} {from_asset} -> {to_asset}: {str(e)}")
                 self.logger.log_message(f"Место ошибки: {location_info}")
                 self.logger.log_message("Полный стек вызовов:\n" + full_trace)
-                self.logger.log_message(f"Ограничения для {symbol}: base_min_size={base_min_size:.8f}, quote_min_size={quote_min_size:.8f}, base_increment={base_increment:.8f}, quote_increment={quote_increment:.8f}")
+                #self.logger.log_message(f"Ограничения для {symbol}: base_min_size={base_min_size:.8f}, quote_min_size={quote_min_size:.8f}, base_increment={base_increment:.8f}, quote_increment={quote_increment:.8f}")
                 return None, False
 
     def execute_trade(self, from_asset, to_asset, amount, symbol, direction, expected_price, fee_rate, price_map):
         if not self.trade_validator.validate_symbol(symbol, price_map):
             return None, False
         base_min_size, quote_min_size, base_increment, quote_increment, ask_price = self.trade_validator.get_constraints(symbol, price_map, expected_price)
+
         if not self.production:
             return self.simulate_trade(symbol, direction, amount, fee_rate, from_asset, to_asset)
         amount, success = self.trade_validator.adjust_balance(self.exchange_client.check_balance, self.logger.log_message, from_asset, amount, self.production)

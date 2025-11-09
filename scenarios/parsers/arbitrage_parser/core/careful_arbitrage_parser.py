@@ -268,7 +268,7 @@ class CarefulArbitrageParser(MarketProcess):
 
     def update_best_op(self, best_op):
         if best_op is not None:
-            print('best op: ')
+            #print('best op: ')
             self.trade_validator.best_op = best_op
             self.fill_local_balances(best_op)
 
@@ -281,8 +281,8 @@ class CarefulArbitrageParser(MarketProcess):
         self.run_realtime_print(ops)
         consecutive_same = self.get_consecutive_for_best(best_op)
         #self.logger.log_message(f"CHECKING: consecutive_same = {consecutive_same}")
-        out_edges, symbol_map, price_map = self.build_graph_and_prices()
+        #out_edges, symbol_map, price_map = self.build_graph_and_prices()
         if self.check_consecutive_threshold(consecutive_same) and self.possible:
-            best_op = self.check_op_warm(best_op, price_map)
-            if best_op:
-                self.run_realtime_trade(best_op)
+           #best_op = self.check_op_warm(best_op, price_map)
+            #if best_op:
+            self.run_realtime_trade(best_op)

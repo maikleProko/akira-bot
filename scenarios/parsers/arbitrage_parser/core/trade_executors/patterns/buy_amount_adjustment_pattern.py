@@ -1,5 +1,5 @@
 from time import sleep
-from decimal import ROUND_FLOOR, Decimal
+from decimal import ROUND_FLOOR, Decimal, ROUND_DOWN
 
 from scenarios.parsers.arbitrage_parser.core.utils.exchange_client import ExchangeClient
 from scenarios.parsers.arbitrage_parser.core.utils.patterns.validation_pattern import ValidationPattern
@@ -8,6 +8,19 @@ from scenarios.parsers.arbitrage_parser.core.utils.patterns.validation_pattern i
 class BuyAmountAdjustmentPattern(ValidationPattern):
     def __init__(self, logger):
         self.logger = logger
+
+    def simple_floor(self, f1, f2):
+        d1 = Decimal(f1)
+        d2 = Decimal(f2)
+        if d2 <= 0:
+            raise ValueError("f2 must be > 0")
+        exp = d2.as_tuple().exponent
+        if exp >= 0:
+            raise ValueError("f2 must be 10**(-n), for example 0.01")
+        # проверка, что f2 = exactly 10**(-n)
+        if d2 != Decimal(1).scaleb(exp):
+            raise ValueError("f2 должен быть точно 10**(-n) (например '0.01', '0.001')")
+        return d1.quantize(d2, rounding=ROUND_DOWN)
 
     def calculate_max_base(self, funds_dec, current_ask_price_dec):
         return funds_dec / current_ask_price_dec
@@ -76,15 +89,25 @@ class BuyAmountAdjustmentPattern(ValidationPattern):
 
     def adjust_buy_amount(self, funds, current_ask_price, base_min_size, base_increment, quote_increment, to_asset, symbol, available, from_asset, adjusted_amount_mode, exchange_client, best_op):
         self.wait_valid_buy_price(exchange_client, best_op, symbol)
-        adjusted_base_amount_dec, success = self.adjust_buy_amount_step1(funds, current_ask_price, base_min_size, base_increment, to_asset, symbol)
-        quote_increment_dec = Decimal(str(quote_increment))
-        if not success:
-            return 0, False
-        adjusted_amount_dec, success = self.adjust_buy_amount_step2(adjusted_base_amount_dec, current_ask_price, quote_increment, from_asset, symbol, available)
-        if not success:
-            return 0, False
-        self.log_adjusted_buy(adjusted_amount_dec, from_asset, quote_increment_dec, adjusted_base_amount_dec, to_asset, current_ask_price, adjusted_amount_mode)
-        return float(adjusted_amount_dec), True
+
+        if adjusted_amount_mode == 0:
+            print(f'Попытка без корректировки, покупка от: {Decimal(str(funds))} {from_asset}')
+            return Decimal(str(funds)), True
+
+        if adjusted_amount_mode == 1:
+            print(f'Попытка без корректировки, покупка от: {Decimal(str(funds))} {from_asset}')
+            return self.simple_floor(str(funds), base_increment), True
+
+        if adjusted_amount_mode > 1:
+            adjusted_base_amount_dec, success = self.adjust_buy_amount_step1(funds, current_ask_price, base_min_size, base_increment, to_asset, symbol)
+            quote_increment_dec = Decimal(str(quote_increment))
+            if not success:
+                return 0, False
+            adjusted_amount_dec, success = self.adjust_buy_amount_step2(adjusted_base_amount_dec, current_ask_price, quote_increment, from_asset, symbol, available)
+            if not success:
+                return 0, False
+            #self.log_adjusted_buy(adjusted_amount_dec, from_asset, quote_increment_dec, adjusted_base_amount_dec, to_asset, current_ask_price, adjusted_amount_mode)
+            return float(adjusted_amount_dec), True
 
     def get_required_price(self, trades, symbol):
         for t in trades:
@@ -96,8 +119,8 @@ class BuyAmountAdjustmentPattern(ValidationPattern):
         actual_price = float(exchange_client.fetch_ticker_price(symbol)['buy'])
         required_price = self.get_required_price(best_op['trades'], symbol)
 
-        while actual_price < required_price:
-            print(f"actual: {str(actual_price)} and required: {str(required_price)}")
+        while actual_price < required_price*1.00025:
+            #print(f"actual: {str(actual_price)} and required: {str(required_price)}")
             actual_price = float(exchange_client.fetch_ticker_price(symbol)['buy'])
             required_price = self.get_required_price(best_op['trades'], symbol)
             sleep(0.01)

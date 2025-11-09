@@ -118,7 +118,6 @@ class BybitExchangeClient(ExchangeClient):
             raise Exception(f"Ошибка API: {balance['retMsg']}")
         if balance['result']['list'] and balance['result']['list'][0]['coin'][0]['walletBalance']:
             return float(balance['result']['list'][0]['coin'][0]['walletBalance'])
-        print('eps')
         return 0.0
 
     def fetch_ticker_price(self, symbol):
@@ -295,7 +294,7 @@ class BybitExchangeClient(ExchangeClient):
     def calculate_expected_amount(self, direction, amount, expected_price, fee_rate, to_asset):
         if direction == 'sell':
             return Decimal(amount) * Decimal(expected_price) * Decimal(1 - fee_rate)
-        return Decimal(amount / expected_price) * Decimal(1 - fee_rate)
+        return Decimal(Decimal(amount) / Decimal(expected_price)) * Decimal(1 - fee_rate)
 
     def monitor_order_loop(self, symbol, order_id, direction, amount, from_asset, to_asset, expected_price, fee_rate, start_time):
         order_details = None
@@ -310,18 +309,20 @@ class BybitExchangeClient(ExchangeClient):
             if len(order_details['result']['list']) > 0:
                 details = order_details['result']['list'][0]
                 if details['orderStatus'] == 'Filled':
-                    execution_time = time.time() - start_time
+                    #execution_time = time.time() - start_time
                     avg_price = float(details['avgPrice'])
                     actual_amount = self.check_order_filled(details, direction, to_asset)
                     expected_amount = self.calculate_expected_amount(direction, amount, expected_price, fee_rate, to_asset)
                     real_amount = float(self.check_balance(to_asset))
-                    previous_amount = float(self.local_balances[to_asset])
-                    real_converted_amount = real_amount - previous_amount
+                    #previous_amount = float(self.local_balances[to_asset])
+                    #real_converted_amount = real_amount - previous_amount
 
-                    self.log_successful_trade(execution_time, direction, amount, from_asset, to_asset, expected_price, avg_price, expected_amount, actual_amount, fee_rate)
+                    #print(f'Ожидаем: {str(Decimal(expected_amount) * Decimal(0.9))} <= {str(Decimal(real_amount))} {to_asset}')
 
-                    self.logger.log_message(f"А теперь реальное количество: {str(real_converted_amount)}. Сумма: {str(previous_amount)} + {str(real_converted_amount)} = {str(real_amount)}")
-                    return actual_amount, True, avg_price
+                    if Decimal(expected_amount) * Decimal(0.9) <= Decimal(real_amount):
+                        #self.log_successful_trade(execution_time, direction, amount, from_asset, to_asset, expected_price, avg_price, expected_amount, actual_amount, fee_rate)
+                        #self.logger.log_message(f"А теперь реальное количество: {str(real_converted_amount)}. Сумма: {str(previous_amount)} + {str(real_converted_amount)} = {str(real_amount)}")
+                        return actual_amount, True, avg_price
             time.sleep(0.1)
         if order_details and order_details['result'] and order_details['result']['list'] and len(order_details['result']['list']) > 0:
             return actual_amount, True, avg_price

@@ -51,7 +51,7 @@ class CycleExecutor:
 
     def fetch_ticker_and_price(self, sym, direction):
         current_ticker = self.exchange_client.fetch_ticker_price(sym)
-        self.logger.log_message(f"{sym}: {current_ticker}")
+        #self.logger.log_message(f"{sym}: {current_ticker}")
         if current_ticker is None or 'buy' not in current_ticker or 'sell' not in current_ticker:
             self.logger.log_message(f"Ошибка: Недопустимый ответ API для {sym}, пропускаем транзакцию")
             return None, None
@@ -66,7 +66,7 @@ class CycleExecutor:
     def adjust_for_insufficient_balance(self, frm, amt, fee, symbol_map, price_map, to):
         available = self.exchange_client.check_balance(frm)
         if available < amt:
-            self.logger.log_message(f"Недостаточно {frm} на балансе: доступно {available:.8f}, требуется {amt:.8f}. Используем весь доступный баланс.")
+            #self.logger.log_message(f"Недостаточно {frm} на балансе: доступно {available:.8f}, требуется {amt:.8f}. Используем весь доступный баланс.")
             amt = available
             if amt == 0:
                 self.logger.log_message(f"Баланс {frm} равен нулю, транзакция невозможна.")
@@ -79,6 +79,7 @@ class CycleExecutor:
         return amt, True
 
     def execute_trade_step(self, frm, to, amt, sym, direction, price, fee, price_map, trades, symbol_map):
+
         if self.production:
             amt, success = self.adjust_for_insufficient_balance(frm, amt, fee, symbol_map, price_map, to)
             if not success:
@@ -94,8 +95,8 @@ class CycleExecutor:
         return new_amt, True
 
     def execute_cycle_loop(self, best_op, amt, trades, valid, symbol_map, price_map, fee):
-        self.log_path_and_profit(best_op)
-        self.log_calc_steps(best_op, fee)
+        #self.log_path_and_profit(best_op)
+        #self.log_calc_steps(best_op, fee)
         is_profitable = True
         for i in range(len(best_op['path']) - 1):
             frm = best_op['path'][i]

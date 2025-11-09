@@ -15,6 +15,7 @@ class TradeConstraintValidationPattern(ValidationPattern):
         base_increment_dec = self.to_decimal(base_increment)
         quote_increment_dec = self.to_decimal(quote_increment)
         fee_dec = self.to_decimal(fee_rate)
+
         return amt_dec, price_dec, base_min_size_dec, quote_min_size_dec, base_increment_dec, quote_increment_dec, fee_dec
 
     def adjust_sell_amount(self, amt_dec, base_increment_dec, base_min_size_dec):

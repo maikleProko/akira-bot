@@ -46,7 +46,7 @@ class SimTradeValidationPattern(ValidationPattern):
     def adjust_base_sim_buy(self, max_base_amount_dec, base_increment_dec, base_min_size_dec, to, sym):
         adjusted_base_amount_dec = (max_base_amount_dec / base_increment_dec).to_integral_value(rounding=ROUND_FLOOR) * base_increment_dec
         if adjusted_base_amount_dec < base_min_size_dec:
-            self.logger.log_message(f"Симуляция: Скорректированное количество {adjusted_base_amount_dec} {to} меньше минимального размера {base_min_size_dec} для {sym}")
+            #self.logger.log_message(f"Симуляция: Скорректированное количество {adjusted_base_amount_dec} {to} меньше минимального размера {base_min_size_dec} для {sym}")
             return None
         return adjusted_base_amount_dec
 
@@ -56,7 +56,7 @@ class SimTradeValidationPattern(ValidationPattern):
     def floor_adjusted_sim_buy(self, adjusted_amount_dec, quote_increment_dec, quote_min_size_dec, frm, sym):
         adjusted_amount_dec = (adjusted_amount_dec / quote_increment_dec).to_integral_value(rounding=ROUND_FLOOR) * quote_increment_dec
         if adjusted_amount_dec < quote_min_size_dec:
-            self.logger.log_message(f"Симуляция: Скорректированная сумма {adjusted_amount_dec} {frm} меньше минимального размера {quote_min_size_dec} для {sym}")
+            #self.logger.log_message(f"Симуляция: Скорректированная сумма {adjusted_amount_dec} {frm} меньше минимального размера {quote_min_size_dec} для {sym}")
             return None
         return adjusted_amount_dec
 

@@ -1,4 +1,4 @@
-from decimal import ROUND_FLOOR, Decimal
+from decimal import ROUND_FLOOR, Decimal, ROUND_DOWN
 from time import sleep
 
 from scenarios.parsers.arbitrage_parser.core.utils.exchange_client import ExchangeClient
@@ -8,6 +8,19 @@ from scenarios.parsers.arbitrage_parser.core.utils.patterns.validation_pattern i
 class SellAmountAdjustmentPattern(ValidationPattern):
     def __init__(self, logger):
         self.logger = logger
+
+    def simple_floor(self, f1, f2):
+        d1 = Decimal(f1)
+        d2 = Decimal(f2)
+        if d2 <= 0:
+            raise ValueError("f2 must be > 0")
+        exp = d2.as_tuple().exponent
+        if exp >= 0:
+            raise ValueError("f2 must be 10**(-n), for example 0.01")
+        # проверка, что f2 = exactly 10**(-n)
+        if d2 != Decimal(1).scaleb(exp):
+            raise ValueError("f2 должен быть точно 10**(-n) (например '0.01', '0.001')")
+        return d1.quantize(d2, rounding=ROUND_DOWN)
 
     def floor_adjust_amount(self, amount_dec, base_increment_dec):
         return (amount_dec / base_increment_dec).to_integral_value(rounding=ROUND_FLOOR) * Decimal(base_increment_dec)
@@ -36,7 +49,10 @@ class SellAmountAdjustmentPattern(ValidationPattern):
         if adjusted_amount_mode == 0:
             adjusted_amount_dec = amount_dec
 
-        if adjusted_amount_mode > 0:
+        if adjusted_amount_mode == 1:
+            adjusted_amount_dec = self.simple_floor(amount_dec, base_increment)
+
+        if adjusted_amount_mode > 1:
             adjusted_amount_dec = self.floor_adjust_amount(amount_dec, base_increment_dec)
 
             if not self.check_min_size(adjusted_amount_dec, base_min_size_dec):
@@ -45,7 +61,7 @@ class SellAmountAdjustmentPattern(ValidationPattern):
         if not self.check_positive_amount(adjusted_amount_dec):
             self.log_zero_amount_error(adjusted_amount_dec, from_asset, symbol)
             return 0, False
-        self.log_adjusted_amount(adjusted_amount_dec, from_asset, base_increment_dec, adjusted_amount_mode)
+        #self.log_adjusted_amount(adjusted_amount_dec, from_asset, base_increment_dec, adjusted_amount_mode)
         return Decimal(adjusted_amount_dec), True
 
 
@@ -59,8 +75,8 @@ class SellAmountAdjustmentPattern(ValidationPattern):
         actual_price = float(exchange_client.fetch_ticker_price(symbol)['sell'])
         required_price = self.get_required_price(best_op['trades'], symbol)
 
-        while actual_price > required_price:
-            print(f"actual: {str(actual_price)} and required: {str(required_price)}")
+        while actual_price > required_price * 0.99975:
+            #print(f"actual: {str(actual_price)} and required: {str(required_price)}")
             actual_price = float(exchange_client.fetch_ticker_price(symbol)['sell'])
             required_price = self.get_required_price(best_op['trades'], symbol)
             sleep(0.01)
