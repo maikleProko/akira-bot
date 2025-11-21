@@ -1,8 +1,8 @@
 from decimal import ROUND_FLOOR, Decimal, ROUND_DOWN
 from time import sleep
 
-from scenarios.parsers.arbitrage_parser.core.utils.exchange_client import ExchangeClient
-from scenarios.parsers.arbitrage_parser.core.utils.patterns.validation_pattern import ValidationPattern
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.utils.exchange_client import ExchangeClient
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.utils.patterns.validation_pattern import ValidationPattern
 
 
 class SellAmountAdjustmentPattern(ValidationPattern):
@@ -75,8 +75,8 @@ class SellAmountAdjustmentPattern(ValidationPattern):
         actual_price = float(exchange_client.fetch_ticker_price(symbol)['sell'])
         required_price = self.get_required_price(best_op['trades'], symbol)
 
-        while actual_price > required_price * 0.99975:
-            #print(f"actual: {str(actual_price)} and required: {str(required_price)}")
+        while actual_price > required_price * 0.999975:
+            print(f"symbol: {symbol}, actual: {str(actual_price)} and required: {str(required_price * 0.999975)}")
             actual_price = float(exchange_client.fetch_ticker_price(symbol)['sell'])
             required_price = self.get_required_price(best_op['trades'], symbol)
             sleep(0.01)

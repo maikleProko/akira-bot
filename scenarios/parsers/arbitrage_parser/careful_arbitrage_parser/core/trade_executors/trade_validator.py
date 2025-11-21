@@ -1,20 +1,20 @@
-from scenarios.parsers.arbitrage_parser.core.trade_executors.patterns.balance_adjustment_pattern import \
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.trade_executors.patterns.balance_adjustment_pattern import \
     BalanceAdjustmentPattern
-from scenarios.parsers.arbitrage_parser.core.trade_executors.patterns.buy_amount_adjustment_pattern import \
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.trade_executors.patterns.buy_amount_adjustment_pattern import \
     BuyAmountAdjustmentPattern
-from scenarios.parsers.arbitrage_parser.core.trade_executors.patterns.buy_funds_adjustment_pattern import \
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.trade_executors.patterns.buy_funds_adjustment_pattern import \
     BuyFundsAdjustmentPattern
-from scenarios.parsers.arbitrage_parser.core.trade_executors.patterns.constraint_validation_pattern import \
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.trade_executors.patterns.constraint_validation_pattern import \
     ConstraintValidationPattern
-from scenarios.parsers.arbitrage_parser.core.trade_executors.patterns.sell_amount_adjustment_pattern import \
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.trade_executors.patterns.sell_amount_adjustment_pattern import \
     SellAmountAdjustmentPattern
-from scenarios.parsers.arbitrage_parser.core.trade_executors.patterns.sim_trade_validation_pattern import \
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.trade_executors.patterns.sim_trade_validation_pattern import \
     SimTradeValidationPattern
-from scenarios.parsers.arbitrage_parser.core.trade_executors.patterns.symbol_validation_pattern import \
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.trade_executors.patterns.symbol_validation_pattern import \
     SymbolValidationPattern
-from scenarios.parsers.arbitrage_parser.core.trade_executors.patterns.trade_constraint_validation_pattern import \
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.trade_executors.patterns.trade_constraint_validation_pattern import \
     TradeConstraintValidationPattern
-from scenarios.parsers.arbitrage_parser.core.utils.logger import Logger
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.utils.logger import Logger
 
 
 class TradeValidator:

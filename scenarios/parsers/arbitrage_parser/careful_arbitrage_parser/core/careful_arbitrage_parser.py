@@ -1,12 +1,12 @@
 import json
 from abc import abstractmethod
 
-from scenarios.parsers.arbitrage_parser.core.cycle_executors.cycle_executor import CycleExecutor
-from scenarios.parsers.arbitrage_parser.core.cycle_executors.cycle_finder import CycleFinder
-from scenarios.parsers.arbitrage_parser.core.cycle_executors.graph_builder import GraphBuilder
-from scenarios.parsers.arbitrage_parser.core.trade_executors.trade_executor import TradeExecutor
-from scenarios.parsers.arbitrage_parser.core.trade_executors.trade_validator import TradeValidator
-from scenarios.parsers.arbitrage_parser.core.utils.logger import Logger
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.cycle_executors.cycle_executor import CycleExecutor
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.cycle_executors.cycle_finder import CycleFinder
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.cycle_executors.graph_builder import GraphBuilder
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.trade_executors.trade_executor import TradeExecutor
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.trade_executors.trade_validator import TradeValidator
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.utils.logger import Logger
 from utils.core.functions import MarketProcess
 
 

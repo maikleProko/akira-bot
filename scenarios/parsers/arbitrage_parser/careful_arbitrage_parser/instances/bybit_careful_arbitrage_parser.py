@@ -3,8 +3,8 @@ import time
 from decimal import Decimal, ROUND_CEILING
 import requests
 from pybit.unified_trading import HTTP
-from scenarios.parsers.arbitrage_parser.core.careful_arbitrage_parser import CarefulArbitrageParser
-from scenarios.parsers.arbitrage_parser.core.utils.exchange_client import ExchangeClient
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.careful_arbitrage_parser import CarefulArbitrageParser
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.utils.exchange_client import ExchangeClient
 
 
 class BybitExchangeClient(ExchangeClient):

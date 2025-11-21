@@ -1,5 +1,5 @@
 import math
-from scenarios.parsers.arbitrage_parser.core.utils.patterns.conversion_pattern import ConversionPattern
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.utils.patterns.conversion_pattern import ConversionPattern
 
 
 class ReverseConversionPattern(ConversionPattern):

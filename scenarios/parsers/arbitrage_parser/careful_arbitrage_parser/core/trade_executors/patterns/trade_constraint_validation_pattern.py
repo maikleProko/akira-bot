@@ -1,6 +1,6 @@
 from decimal import Decimal, ROUND_FLOOR
 
-from scenarios.parsers.arbitrage_parser.core.utils.patterns.validation_pattern import ValidationPattern
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.utils.patterns.validation_pattern import ValidationPattern
 
 
 class TradeConstraintValidationPattern(ValidationPattern):

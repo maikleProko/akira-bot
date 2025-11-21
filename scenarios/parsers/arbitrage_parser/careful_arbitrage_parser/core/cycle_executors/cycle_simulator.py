@@ -1,5 +1,5 @@
-from scenarios.parsers.arbitrage_parser.core.cycle_executors.cycle_price_fetcher import CyclePriceFetcher
-from scenarios.parsers.arbitrage_parser.core.cycle_executors.cycle_logger import CycleLogger
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.cycle_executors.cycle_price_fetcher import CyclePriceFetcher
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.cycle_executors.cycle_logger import CycleLogger
 
 
 class CycleSimulator:

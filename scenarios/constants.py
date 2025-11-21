@@ -1,4 +1,5 @@
-from scenarios.parsers.arbitrage_parser.instances.bybit_careful_arbitrage_parser import BybitCarefulArbitrageParser
+from scenarios.api_keys import BYBIT_API_KEY, BYBIT_API_SECRET
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.instances.bybit_careful_arbitrage_parser import BybitCarefulArbitrageParser
 
 #SYMBOLS
 symbol1 = 'BTC'
@@ -16,8 +17,8 @@ end_time_string='2025/10/22 15:55'
 arbitrage_parser = BybitCarefulArbitrageParser(
     production=True,
     deposit=0.00011,
-    api_key='',
-    api_secret='',
+    api_key=BYBIT_API_KEY,
+    api_secret=BYBIT_API_SECRET,
     api_passphrase='-1',
     strict_coin='BTC',
     strict=True,

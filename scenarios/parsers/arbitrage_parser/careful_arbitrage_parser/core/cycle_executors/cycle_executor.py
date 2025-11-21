@@ -1,12 +1,12 @@
 import asyncio
 import time
 import aiohttp
-from scenarios.parsers.arbitrage_parser.core.cycle_executors.cycle_price_fetcher import CyclePriceFetcher
-from scenarios.parsers.arbitrage_parser.core.cycle_executors.cycle_simulator import CycleSimulator
-from scenarios.parsers.arbitrage_parser.core.cycle_executors.cycle_start_balance_adjuster import \
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.cycle_executors.cycle_price_fetcher import CyclePriceFetcher
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.cycle_executors.cycle_simulator import CycleSimulator
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.cycle_executors.cycle_start_balance_adjuster import \
     CycleStartBalanceAdjuster
-from scenarios.parsers.arbitrage_parser.core.cycle_executors.cycle_trade_result_saver import CycleTradeResultSaver
-from scenarios.parsers.arbitrage_parser.core.cycle_executors.cycle_logger import CycleLogger
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.cycle_executors.cycle_trade_result_saver import CycleTradeResultSaver
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.cycle_executors.cycle_logger import CycleLogger
 
 
 class CycleExecutor:

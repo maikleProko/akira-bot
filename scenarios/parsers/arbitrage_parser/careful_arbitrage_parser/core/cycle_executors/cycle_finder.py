@@ -1,6 +1,6 @@
-from scenarios.parsers.arbitrage_parser.core.cycle_executors.patterns.direct_conversion_pattern import \
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.cycle_executors.patterns.direct_conversion_pattern import \
     DirectConversionPattern
-from scenarios.parsers.arbitrage_parser.core.cycle_executors.patterns.reverse_conversion_pattern import \
+from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.cycle_executors.patterns.reverse_conversion_pattern import \
     ReverseConversionPattern
 
 

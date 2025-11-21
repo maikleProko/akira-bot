@@ -1,3 +1,4 @@
+from datetime import datetime
 import json
 
 
@@ -22,6 +23,9 @@ def load_json(file_path: str) -> dict:
         raise FileNotFoundError(f"Файл {file_path} не найден")
     except json.JSONDecodeError as e:
         raise json.JSONDecodeError(f"Ошибка при разборке JSON в файле {file_path}: {str(e)}")
+
+def log(text):
+    print(f"{datetime.now()} {str(text)}")
 
 
 class MarketProcess:
