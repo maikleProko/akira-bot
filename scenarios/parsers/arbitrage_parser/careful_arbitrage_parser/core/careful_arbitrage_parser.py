@@ -97,6 +97,7 @@ class CarefulArbitrageParser(MarketProcess):
                 return True
         return False
 
+
     def check_op_warm(self, op, price_map):
         restricted = self.check_restricted(op, price_map)
         if not restricted:

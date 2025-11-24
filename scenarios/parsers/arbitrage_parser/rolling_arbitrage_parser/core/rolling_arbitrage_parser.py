@@ -7,9 +7,8 @@ from utils.core.functions import MarketProcess
 
 class RollingArbitrageParser(AbstractArbitrageParser):
     def __init__(self, api_key='', api_secret=''):
+        super().__init__()
         self.session = None
         self.api_url = None
         self.init(api_key, api_secret)
 
-    def run_realtime(self):
-        pass
