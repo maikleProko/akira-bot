@@ -7,7 +7,7 @@ from utils.core.functions import log
 
 
 class BybitRollingArbitrageParser(RollingArbitrageParser):
-    def init(self, api_key, api_secret):
+    def init(self, api_key, api_secret, api_passphrase):
         self.session = HTTP(api_key=api_key, api_secret=api_secret)
         self.api_url = "https://api.bybit.com"
         self.symbol_price_url = f"{self.api_url}/v5/market/tickers?category=spot&symbol="

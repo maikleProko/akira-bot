@@ -10,24 +10,50 @@ from utils.core.functions import MarketProcess
 
 class AbstractArbitrageParser(MarketProcess):
 
-    def __init__(self):
-        self.ignore = None
-        self.available_coins = None
-        self.exchange_client = None
+    def __init__(
+            self,
+            ignore=None,
+            available_coins=[],
+            strict=True,
+            strict_coin='BTC',
+            possible=False,
+            fee_rate=0.001,
+            min_profit=0.006,
+            max_profit=0.1,
+            max_cycles=20000000000,
+            max_cycle_len=6,
+            api_key = '',
+            api_secret='',
+            api_passphrase='-1',
+            production=False,
+            only_once=False,
+            deposit=0.00011,
+    ):
+        self.ignore = ignore
+        self.available_coins = available_coins
+        self.strict = strict
+        self.strict_coin = strict_coin
+        self.possible = possible
+        self.fee_rate = fee_rate
+        self.min_profit = min_profit
+        self.max_profit = max_profit
+        self.max_cycles = max_cycles
+        self.max_cycle_len = max_cycle_len
+        self.production = production
+        self.only_once = only_once
+        self.deposit=deposit
+
         self.logger = Logger()
         self.direct_strategy = DirectConversionPattern(self.logger)
         self.reverse_strategy = ReverseConversionPattern(self.logger)
-        self.strict = True
-        self.strict_coin = ''
+        self.session = None
+        self.api_url = None
         self.consecutive_same = []
-        self.possible = False
-        self.fee_rate = 0.001
-        self.min_profit = 0.006
-        self.max_profit = 0.1
-        self.max_cycles = 20000000000
-        self.max_cycle_len = 6
 
-    def init(self,api_key, api_secret):
+        self.init(api_key, api_secret, api_passphrase)
+        self.start_amount = 0
+
+    def init(self,api_key, api_secret, api_passphrase):
         raise NotImplementedError
 
     def run_realtime(self):
@@ -63,14 +89,16 @@ class AbstractArbitrageParser(MarketProcess):
 
     def _process_symbol_checks(self, s):
         symbol, base, quote, base_min_size, base_increment, quote_increment = self._extract_symbol_data(s)
-        if not s['state'] == 'live': # check_state_live
-            return False
+        print(s)
         if not base not in self.ignore and quote not in self.ignore: # check_ignore_assets
             return False
+        print(11)
         if not self.available_coins is None or (base in self.available_coins and quote in self.available_coins): # check_available_coins
             return False
+        print(12)
         if not base_increment < 1.0 and base_min_size < 1.0: # check_increments_valid
             return False
+        print(13)
         return True
 
     def _extract_symbol_data(self, s):
@@ -88,8 +116,9 @@ class AbstractArbitrageParser(MarketProcess):
             symbols.append((symbol, base, quote, base_min_size, quote_min_size, base_increment, quote_increment))
 
     def _fetch_and_map_tickers(self):
-        tickers = self.exchange_client.fetch_tickers()
-        ticker_map = {t['instId']: t for t in tickers}
+        tickers = self.get_tickers()
+        ticker_map = {t['symbol']: t for t in tickers}
+        print(ticker_map)
         return ticker_map
 
     def _process_ticker_try(self, sym, base, quote, base_min_size, quote_min_size, base_increment, quote_increment, ticker_map):
@@ -253,24 +282,31 @@ class AbstractArbitrageParser(MarketProcess):
 
     def find_arbitrage_cycles(self, out_edges, symbol_map, price_map, fee_rate, min_profit, start_amount, max_cycles,
                               max_cycle_len, max_profit, ignored_symbols):
+        print(1)
         self.start_amount = start_amount
         if max_cycle_len < 3:
             raise ValueError("max_cycle_len must be >= 3")
 
+        print(2)
         opportunities = []
         checked = 0
         seen_cycles = set()
         stop_flag = False
 
+        print(3)
         assets = list(out_edges.keys())
         for a in assets:
             if stop_flag:
                 break
             if len(out_edges[a]) < 1:
                 continue
+
+            print(4)
             checked, stop_flag = self._dfs(a, [a], out_edges, seen_cycles, symbol_map, price_map, fee_rate,
                                           ignored_symbols, min_profit, max_profit, opportunities, checked, max_cycles,
                                           max_cycle_len, stop_flag)
+
+            print(5)
         opportunities = opportunities.sort(key=lambda x: x['profit_perc'], reverse=True)
         return opportunities
         
@@ -310,7 +346,6 @@ class AbstractArbitrageParser(MarketProcess):
     def calculate_best_op(self, cycles_ops, strict):
         self._update_consecutive(cycles_ops)
         valid_ops = self._find_valid_ops(cycles_ops, strict)
-        #best_op = self._get_best_op(valid_ops, strict)
         return cycles_ops, valid_ops, valid_ops[0]
 
     # RUNTIME TRADE
@@ -318,13 +353,6 @@ class AbstractArbitrageParser(MarketProcess):
     def start_trade(self, best_op, out_edges, symbol_map, price_map):
         raise NotImplementedError
 
-
-    def run_realtime(self):
-        out_edges, symbol_map, price_map = self.build_graph_and_prices()
-        ops = self.find_arbitrage_cycles(out_edges, symbol_map, price_map, self.fee_rate, self.min_profit, self.start_amount, self.max_cycles, self.max_cycle_len, self.max_profit, [])
-        best_op = self.calculate_best_op(ops, self.strict)
-        if len(self.consecutive_same) > 0  and self.possible:
-            self.start_trade(best_op, out_edges, symbol_map, price_map)
 
 
 

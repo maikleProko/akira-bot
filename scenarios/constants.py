@@ -1,5 +1,7 @@
 from scenarios.api_keys import BYBIT_API_KEY, BYBIT_API_SECRET
 from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.instances.bybit_careful_arbitrage_parser import BybitCarefulArbitrageParser
+from scenarios.parsers.arbitrage_parser.rolling_arbitrage_parser.instances.bybit_rolling_arbitrage_parser import \
+    BybitRollingArbitrageParser
 
 #SYMBOLS
 symbol1 = 'BTC'
@@ -14,20 +16,18 @@ end_time_string='2025/10/22 15:55'
 #PROCESSES (STRATEGIES)
 
 
-arbitrage_parser = BybitCarefulArbitrageParser(
-    production=True,
+arbitrage_parser = BybitRollingArbitrageParser(
+    production=False,
     deposit=0.00011,
     api_key=BYBIT_API_KEY,
     api_secret=BYBIT_API_SECRET,
     api_passphrase='-1',
     strict_coin='BTC',
     strict=True,
-    min_profit=0.006,
+    min_profit=0.0000006,
     max_profit=10.009,
-    fee_rate=0.0012,
-    ignore=['RLUSD'],
-    only_once=True,
-    abusing_only_once=True
+    fee_rate=0.0000,
+    ignore=['RLUSD']
 )
 
 '''
