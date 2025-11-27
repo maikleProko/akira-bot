@@ -14,7 +14,7 @@ from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.trade_exec
     SymbolValidationPattern
 from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.trade_executors.patterns.trade_constraint_validation_pattern import \
     TradeConstraintValidationPattern
-from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.core.utils.logger import Logger
+from utils.core.logger import Logger
 
 
 class TradeValidator:
