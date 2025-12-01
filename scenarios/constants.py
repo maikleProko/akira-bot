@@ -17,20 +17,20 @@ end_time_string='2025/10/22 15:55'
 
 
 arbitrage_parser = BybitRollingArbitrageParser(
-    production=False,
-    deposit=10,
+    production=True,
+    deposit=5,
     api_key=BYBIT_API_KEY,
-
     api_secret=BYBIT_API_SECRET,
     api_passphrase='-1',
     strict_coin='USDT',
     strict=True,
-    min_profit=0.004,
+    min_profit=0.1,
     max_profit=10.009,
-    fee_rate=0.000,
+    fee_rate=-0.1,
     ignore=['RLUSD', 'VIRTUAL'],
-    is_real_fee=True,
+    is_real_fee=False,
     believe_score=3,
+    only_once=True,
     is_testing_only_once=True,
 )
 

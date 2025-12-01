@@ -50,6 +50,7 @@ class RollingArbitrageParser(AbstractArbitrageParser):
             balances[start_coin] = total
         self.logger.print_message(f"Starting rolling arbitrage with total {total} {start_coin}, N={N}")
         portion = total / N
+
         # Инициализация: распределение капитала по позициям асинхронно
         init_tasks = []
         for pos in range(1, N):

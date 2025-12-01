@@ -502,11 +502,17 @@ class AbstractArbitrageParser(MarketProcess):
         raise NotImplementedError("start_trade должен быть реализован в наследнике")
     # ==================== ТОРГОВЫЕ HELPERЫ ====================
     def _round_qty(self, qty: float, qty_step: Decimal, min_qty: Decimal) -> float:
+        print(qty)
+        print(qty_step)
+        print(min_qty)
         d_qty = Decimal(str(qty))
         d_step = qty_step
+        if d_step == 0:
+            return float((d_qty // min_qty) * min_qty)
         rounded = (d_qty // d_step) * d_step
         if rounded < min_qty:
             return 0.0
+
         return float(rounded.quantize(d_step, rounding=ROUND_DOWN))
     def _get_trade_params(self, from_coin: str, to_coin: str, amount: float) -> Optional[dict]:
         """
@@ -552,9 +558,10 @@ class AbstractArbitrageParser(MarketProcess):
             self.logger.print_message(f"Notional too low for {symbol}: {notional} < {min_notional}")
             return None
         qty_rounded = self._round_qty(qty, qty_step, min_qty)
+        '''        
         if qty_rounded <= 0 or qty_rounded < float(min_qty) or qty_rounded > float(max_mkt_qty):
-            self.logger.print_message(f"Invalid qty for {symbol}: {qty_rounded}")
-            return None
+        self.logger.print_message(f"Invalid qty for {symbol}: {qty_rounded}")
+        return None'''
         return {'symbol': symbol, 'side': side, 'qty': qty_rounded}
     async def async_place_order(self, **order_params):
         """
