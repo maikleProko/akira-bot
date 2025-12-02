@@ -23,8 +23,15 @@ class BybitRollingArbitrageParser(RollingArbitrageParser):
         balance = self.session.get_wallet_balance(accountType="UNIFIED", coin=asset)
         if balance['retCode'] != 0:
             raise Exception(f"Ошибка API: {balance['retMsg']}")
-        print(balance['result']['list'][0]['coin'][0])
-        return float(balance['result']['list'][0]['coin'][0]['walletBalance'])
+        print(balance['result']['list'])
+        for coin in balance['result']['list']:
+            if coin['coin'][0]['coin'] == asset:
+                balance = coin['coin'][0]['walletBalance']
+                if balance == '':
+                    return 0
+                return float(balance)
+        print("Ошибка API: NOT COIN")
+        return 0
 
 
     def get_fees(self):

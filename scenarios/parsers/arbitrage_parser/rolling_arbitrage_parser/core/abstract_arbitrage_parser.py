@@ -116,41 +116,39 @@ class AbstractArbitrageParser(MarketProcess):
         2. Ищем арбитражные циклы с помощью DFS
         3. Если найден профитный путь — визуализируем расчёт, запускаем торговлю (реализация в наследниках)
         """
-        while True:
-            try:
-                # Шаг 1: Получаем все цены с биржи и строим структуры (для поиска циклов нужно все)
-                self._fetch_prices()
-                # Шаг 2: Ищем арбитражные циклы
-                best_path = self._find_arbitrage_paths()
-                if best_path:
-                    norm_path = self._normalize_path(best_path['path'])
-                    if norm_path == self.previous_path:
-                        self.consecutive_count += 1
-                    else:
-                        self.consecutive_count = 1
-                        self.previous_path = norm_path
-                    self.logger.print_message(f"Найден арбитражный путь: {' -> '.join(best_path['path'])} "
-                                            f"| Прибыль: {best_path['profit']:.4%} | Consecutive: {self.consecutive_count}/{self.believe_score}")
-                    if self.consecutive_count >= self.believe_score:
-                        # Визуализация расчёта прибыли
-                        self.visualize_cycle_precise(best_path, self.deposit)
-                        # Запускаем торговлю всегда
-                        asyncio.run(self.start_trade(best_path))
-                        self.consecutive_count = 0
-                        self.previous_path = None
-                        if self.is_testing_only_once or self.is_run_once:
-                            break  # Завершаем после одного запуска
+        try:
+            # Шаг 1: Получаем все цены с биржи и строим структуры (для поиска циклов нужно все)
+            self._fetch_prices()
+            # Шаг 2: Ищем арбитражные циклы
+            best_path = self._find_arbitrage_paths()
+            if best_path:
+                norm_path = self._normalize_path(best_path['path'])
+                if norm_path == self.previous_path:
+                    self.consecutive_count += 1
                 else:
-                    self.logger.print_message("Арбитражных возможностей не найдено")
+                    self.consecutive_count = 1
+                    self.previous_path = norm_path
+                self.logger.print_message(f"Найден арбитражный путь: {' -> '.join(best_path['path'])} "
+                                          f"| Прибыль: {best_path['profit']:.4%} | Consecutive: {self.consecutive_count}/{self.believe_score}")
+                if self.consecutive_count >= self.believe_score:
+                    # Визуализация расчёта прибыли
+                    self.visualize_cycle_precise(best_path, self.deposit)
+                    # Запускаем торговлю всегда
+                    asyncio.run(self.start_trade(best_path))
                     self.consecutive_count = 0
                     self.previous_path = None
-            except Exception as e:
-                self.logger.print_message(f"Ошибка в run_realtime: {e}")
+                    if self.is_testing_only_once or self.is_run_once:
+                        break  # Завершаем после одного запуска
+            else:
+                self.logger.print_message("Арбитражных возможностей не найдено")
                 self.consecutive_count = 0
                 self.previous_path = None
-            if self.only_once:
-                break
-            time.sleep(1)  # Задержка между итерациями
+        except Exception as e:
+            self.logger.print_message(f"Ошибка в run_realtime: {e}")
+            self.consecutive_count = 0
+            self.previous_path = None
+        if self.only_once:
+            break
     def _normalize_path(self, path: List[str]) -> Tuple:
         """
         Нормализует путь для сравнения, аналогично normalize_cycle.
@@ -514,6 +512,7 @@ class AbstractArbitrageParser(MarketProcess):
             return 0.0
 
         return float(rounded.quantize(d_step, rounding=ROUND_DOWN))
+
     def _get_trade_params(self, from_coin: str, to_coin: str, amount: float) -> Optional[dict]:
         """
         Определяет параметры для place_order: symbol, side, qty.
@@ -521,7 +520,6 @@ class AbstractArbitrageParser(MarketProcess):
         """
         sym_direct = self.symbol_map.get((from_coin, to_coin))
         p = None
-        is_sell = True
         if sym_direct:
             symbol = sym_direct
             p = self.price_map.get(symbol)
@@ -531,7 +529,6 @@ class AbstractArbitrageParser(MarketProcess):
             rate = p['bid']
             qty = amount  # base amount
             notional = qty * rate
-            is_sell = True
         else:
             sym_rev = self.symbol_map.get((to_coin, from_coin))
             if sym_rev:
@@ -541,9 +538,8 @@ class AbstractArbitrageParser(MarketProcess):
                     return None
                 side = 'Buy'
                 rate = p['ask']
-                qty = amount / rate  # quote amount / ask to get base qty
+                qty = amount  # quote amount (USDT) for market buy on Bybit
                 notional = amount
-                is_sell = False
             else:
                 return None
         if not self._check_slippage(symbol):
@@ -554,15 +550,22 @@ class AbstractArbitrageParser(MarketProcess):
         max_mkt_qty = lot_info.get('maxMktOrderQty', Decimal('inf'))
         qty_step = lot_info.get('qtyStep', Decimal('1'))
         min_notional = lot_info.get('minNotionalValue', Decimal('0'))
+        quote_precision = lot_info.get('quotePrecision', Decimal('0.01'))  # Assuming added to lot_size_map
         if notional < float(min_notional):
             self.logger.print_message(f"Notional too low for {symbol}: {notional} < {min_notional}")
             return None
-        qty_rounded = self._round_qty(qty, qty_step, min_qty)
-        '''        
-        if qty_rounded <= 0 or qty_rounded < float(min_qty) or qty_rounded > float(max_mkt_qty):
-        self.logger.print_message(f"Invalid qty for {symbol}: {qty_rounded}")
-        return None'''
-        return {'symbol': symbol, 'side': side, 'qty': qty_rounded}
+        if side == 'Buy':
+            # For market buy: qty in quote (USDT), round by quotePrecision
+            d_qty = Decimal(str(qty))
+            qty_rounded = d_qty.quantize(quote_precision, rounding=ROUND_DOWN)
+        else:
+            # For sell: qty in base, round by qty_step
+            qty_rounded = self._round_qty(qty, qty_step, min_qty)
+        if qty_rounded <= 0 or (side != 'Buy' and (qty_rounded < float(min_qty) or qty_rounded > float(max_mkt_qty))):
+            self.logger.print_message(f"Invalid qty for {symbol}: {qty_rounded}")
+            return None
+        return {'symbol': symbol, 'side': side, 'qty': float(qty_rounded)}  # or str(qty_rounded) if API requires string
+
     async def async_place_order(self, **order_params):
         """
         Асинхронная версия place_order.
