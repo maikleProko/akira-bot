@@ -32,8 +32,8 @@ class AbstractArbitrageParser(MarketProcess):
             slippage_limit=0.003,
             max_retries=3,
             believe_score=1,
-            is_testing_only_once=False,
-            is_run_once=False,
+            is_testing_only_once_in_cycle=False,
+            is_testing_only_once_out_cycle=False,
     ):
         self.ignore = ignore or []
         self.available_coins = available_coins or []
@@ -52,15 +52,15 @@ class AbstractArbitrageParser(MarketProcess):
         self.slippage_limit = slippage_limit
         self.max_retries = max_retries
         self.believe_score = believe_score
-        self.is_testing_only_once = is_testing_only_once
-        self.is_run_once = is_run_once
+        self.is_testing_only_once_in_cycle = is_testing_only_once_in_cycle
+        self.is_testing_only_once_out_cycle = is_testing_only_once_out_cycle
         self.logger = Logger()
         # Структуры для графа и цен
         self.out_edges: Dict[str, set] = defaultdict(set)
         self.symbol_map: Dict[Tuple[str, str], str] = {}
         self.price_map: Dict[str, Dict] = {} # Теперь с timestamp: {'bid':, 'ask':, ..., 'timestamp': time.time()}
         self.fee_map: Dict[str, float] = {}  # symbol -> fee_rate (реальная или фиксированная)
-        self.lot_size_map: Dict[str, Dict] = {}  # symbol -> {'minOrderQty': Decimal, 'maxMktOrderQty': Decimal, 'qtyStep': Decimal, 'minNotionalValue': Decimal}
+        self.lot_size_map: Dict[str, Dict] = {}  # symbol -> {'minOrderQty': Decimal, 'maxOrderQty': Decimal, 'qtyStep': Decimal, 'minNotionalValue': Decimal, 'basePrecision': Decimal, 'quotePrecision': Decimal}
         # Кешируем тикеры
         self.tickers_cache: Dict[str, Dict] = {}
         self.consecutive_same = []
@@ -69,6 +69,8 @@ class AbstractArbitrageParser(MarketProcess):
         self.consecutive_count: int = 0
         self.init(api_key, api_secret, api_passphrase)
         self._build_symbol_map() # Строим symbol_map разово в init
+        self.is_tested_only_once_out_cycle = False
+        self.is_tested_only_once_in_cycle = False
     def _build_symbol_map(self):
         """
         Строим symbol_map и out_edges разово в init, без цен.
@@ -87,8 +89,8 @@ class AbstractArbitrageParser(MarketProcess):
             fee_dict = {}
         for s in symbols_info:
             symbol = s.get('instId') or s.get('symbol')
-            base = s.get('baseCcy') or self._split_symbol(symbol)[0]
-            quote = s.get('quoteCcy') or self._split_symbol(symbol)[1]
+            base = s.get('baseCoin') or self._split_symbol(symbol)[0]
+            quote = s.get('quoteCoin') or self._split_symbol(symbol)[1]
             if not base or not quote:
                 continue
             if base in self.ignore or quote in self.ignore:
@@ -104,9 +106,11 @@ class AbstractArbitrageParser(MarketProcess):
             lot_filter = s.get('lotSizeFilter', {})
             self.lot_size_map[symbol] = {
                 'minOrderQty': Decimal(lot_filter.get('minOrderQty', '0')),
-                'maxMktOrderQty': Decimal(lot_filter.get('maxMktOrderQty', '0')),
+                'maxOrderQty': Decimal(lot_filter.get('maxOrderQty', '0')),
                 'qtyStep': Decimal(lot_filter.get('qtyStep', '0')),
-                'minNotionalValue': Decimal(s.get('minNotionalValue', '0'))
+                'minNotionalValue': Decimal(lot_filter.get('minOrderValue', '0')),
+                'basePrecision': Decimal(lot_filter.get('basePrecision', '0.0001')),
+                'quotePrecision': Decimal(lot_filter.get('quotePrecision', '0.01'))
             }
     # ==================== ОСНОВНОЙ ЦИКЛ РЕАЛТАЙМ ====================
     def run_realtime(self):
@@ -116,39 +120,42 @@ class AbstractArbitrageParser(MarketProcess):
         2. Ищем арбитражные циклы с помощью DFS
         3. Если найден профитный путь — визуализируем расчёт, запускаем торговлю (реализация в наследниках)
         """
-        try:
-            # Шаг 1: Получаем все цены с биржи и строим структуры (для поиска циклов нужно все)
-            self._fetch_prices()
-            # Шаг 2: Ищем арбитражные циклы
-            best_path = self._find_arbitrage_paths()
-            if best_path:
-                norm_path = self._normalize_path(best_path['path'])
-                if norm_path == self.previous_path:
-                    self.consecutive_count += 1
+        if not self.is_tested_only_once_out_cycle:
+            try:
+                # Шаг 1: Получаем все цены с биржи и строим структуры (для поиска циклов нужно все)
+                self._fetch_prices()
+                # Шаг 2: Ищем арбитражные циклы
+                best_path = self._find_arbitrage_paths()
+                if best_path:
+                    norm_path = self._normalize_path(best_path['path'])
+                    if norm_path == self.previous_path:
+                        self.consecutive_count += 1
+                    else:
+                        self.consecutive_count = 1
+                        self.previous_path = norm_path
+                    self.logger.print_message(f"Найден арбитражный путь: {' -> '.join(best_path['path'])} "
+                                              f"| Прибыль: {best_path['profit']:.4%} | Consecutive: {self.consecutive_count}/{self.believe_score}")
+                    if self.consecutive_count >= self.believe_score:
+                        # Визуализация расчёта прибыли
+                        self.visualize_cycle_precise(best_path, self.deposit)
+                        # Запускаем торговлю всегда
+                        asyncio.run(self.start_trade(best_path))
+                        self.consecutive_count = 0
+                        self.previous_path = None
+                        if self.is_testing_only_once_out_cycle and not self.is_tested_only_once_out_cycle:
+                            self.is_tested_only_once_out_cycle = True
                 else:
-                    self.consecutive_count = 1
-                    self.previous_path = norm_path
-                self.logger.print_message(f"Найден арбитражный путь: {' -> '.join(best_path['path'])} "
-                                          f"| Прибыль: {best_path['profit']:.4%} | Consecutive: {self.consecutive_count}/{self.believe_score}")
-                if self.consecutive_count >= self.believe_score:
-                    # Визуализация расчёта прибыли
-                    self.visualize_cycle_precise(best_path, self.deposit)
-                    # Запускаем торговлю всегда
-                    asyncio.run(self.start_trade(best_path))
+                    self.logger.print_message("Арбитражных возможностей не найдено")
                     self.consecutive_count = 0
                     self.previous_path = None
-                    if self.is_testing_only_once or self.is_run_once:
-                        break  # Завершаем после одного запуска
-            else:
-                self.logger.print_message("Арбитражных возможностей не найдено")
+            except Exception as e:
+                self.logger.print_message(f"Ошибка в run_realtime: {e}")
                 self.consecutive_count = 0
                 self.previous_path = None
-        except Exception as e:
-            self.logger.print_message(f"Ошибка в run_realtime: {e}")
-            self.consecutive_count = 0
-            self.previous_path = None
-        if self.only_once:
-            break
+        else:
+            self.logger.print_message('stop checking...')
+            time.sleep(100)
+
     def _normalize_path(self, path: List[str]) -> Tuple:
         """
         Нормализует путь для сравнения, аналогично normalize_cycle.
@@ -380,6 +387,8 @@ class AbstractArbitrageParser(MarketProcess):
         p = self.price_map.get(symbol)
         if not p:
             return None
+        if not self._check_slippage(symbol):
+            return None
         fee = self.fee_map.get(symbol, self.fee_rate)
         if sym_direct:
             bid = p['bid']
@@ -500,9 +509,6 @@ class AbstractArbitrageParser(MarketProcess):
         raise NotImplementedError("start_trade должен быть реализован в наследнике")
     # ==================== ТОРГОВЫЕ HELPERЫ ====================
     def _round_qty(self, qty: float, qty_step: Decimal, min_qty: Decimal) -> float:
-        print(qty)
-        print(qty_step)
-        print(min_qty)
         d_qty = Decimal(str(qty))
         d_step = qty_step
         if d_step == 0:
@@ -520,6 +526,7 @@ class AbstractArbitrageParser(MarketProcess):
         """
         sym_direct = self.symbol_map.get((from_coin, to_coin))
         p = None
+        market_unit = None
         if sym_direct:
             symbol = sym_direct
             p = self.price_map.get(symbol)
@@ -529,6 +536,7 @@ class AbstractArbitrageParser(MarketProcess):
             rate = p['bid']
             qty = amount  # base amount
             notional = qty * rate
+            market_unit = 'baseCoin'
         else:
             sym_rev = self.symbol_map.get((to_coin, from_coin))
             if sym_rev:
@@ -540,6 +548,7 @@ class AbstractArbitrageParser(MarketProcess):
                 rate = p['ask']
                 qty = amount  # quote amount (USDT) for market buy on Bybit
                 notional = amount
+                market_unit = 'quoteCoin'
             else:
                 return None
         if not self._check_slippage(symbol):
@@ -547,10 +556,11 @@ class AbstractArbitrageParser(MarketProcess):
             return None
         lot_info = self.lot_size_map.get(symbol, {})
         min_qty = lot_info.get('minOrderQty', Decimal('0'))
-        max_mkt_qty = lot_info.get('maxMktOrderQty', Decimal('inf'))
+        max_qty = lot_info.get('maxOrderQty', Decimal('inf'))
         qty_step = lot_info.get('qtyStep', Decimal('1'))
         min_notional = lot_info.get('minNotionalValue', Decimal('0'))
-        quote_precision = lot_info.get('quotePrecision', Decimal('0.01'))  # Assuming added to lot_size_map
+        quote_precision = lot_info.get('quotePrecision', Decimal('0.01'))
+        base_precision = lot_info.get('basePrecision', Decimal('0.0001'))
         if notional < float(min_notional):
             self.logger.print_message(f"Notional too low for {symbol}: {notional} < {min_notional}")
             return None
@@ -558,13 +568,24 @@ class AbstractArbitrageParser(MarketProcess):
             # For market buy: qty in quote (USDT), round by quotePrecision
             d_qty = Decimal(str(qty))
             qty_rounded = d_qty.quantize(quote_precision, rounding=ROUND_DOWN)
+            # Estimate base received
+            est_base = qty_rounded / Decimal(str(rate))
+            if est_base < min_qty:
+                self.logger.print_message(f"Estimated base too low for {symbol}: {est_base} < {min_qty}")
+                return None
         else:
-            # For sell: qty in base, round by qty_step
-            qty_rounded = self._round_qty(qty, qty_step, min_qty)
-        if qty_rounded <= 0 or (side != 'Buy' and (qty_rounded < float(min_qty) or qty_rounded > float(max_mkt_qty))):
+            # For sell: qty in base, round by basePrecision or qty_step
+            d_qty = Decimal(str(qty))
+            qty_rounded = d_qty.quantize(base_precision, rounding=ROUND_DOWN)
+            if qty_step > 0:
+                qty_rounded = self._round_qty(float(qty_rounded), qty_step, min_qty)
+        if qty_rounded <= 0 or qty_rounded > float(max_qty):
             self.logger.print_message(f"Invalid qty for {symbol}: {qty_rounded}")
             return None
-        return {'symbol': symbol, 'side': side, 'qty': float(qty_rounded)}  # or str(qty_rounded) if API requires string
+        params = {'symbol': symbol, 'side': side, 'qty': str(qty_rounded)}  # str for API
+        if market_unit:
+            params['marketUnit'] = market_unit
+        return params
 
     async def async_place_order(self, **order_params):
         """
@@ -589,9 +610,11 @@ class AbstractArbitrageParser(MarketProcess):
                 status = order['orderStatus']
                 filled_qty = float(order['cumExecQty'])
                 avg_price = float(order['avgPrice']) if order['avgPrice'] else 0.0
-                if status == 'Filled':
+                if status in ['Filled', 'PartiallyFilledCanceled']:
+                    if filled_qty == 0:
+                        raise Exception(f"Order {order_id} filled with zero qty")
                     return filled_qty, avg_price
-                elif status in ['Cancelled', 'Rejected']:
+                elif status in ['Cancelled', 'Rejected', 'Deactivated']:
                     raise Exception(f"Order {order_id} failed: {status}")
             await asyncio.sleep(0.5)
         raise Exception(f"Order {order_id} not filled in time")
@@ -623,14 +646,13 @@ class AbstractArbitrageParser(MarketProcess):
                 try:
                     order_id = self.place_order(category='spot', orderType='Market', **params)
                     filled_qty, avg_price = asyncio.run(self._check_order_filled(order_id, symbol))
-                    if filled_qty < params['qty'] * 0.95:  # Partial fill tolerance
-                        self.logger.print_message(f"Partial fill for {order_id}: {filled_qty}/{params['qty']}")
-                    # Calculate actual received
+                    # No partial check, accept what filled
+                    # Calculate actual received approx
                     if params['side'] == 'Sell':
                         actual_received = filled_qty * avg_price * (1 - fee_rate)
                     else:
                         actual_received = filled_qty * (1 - fee_rate)
-                    # Update balances cache if provided
+                    # But better refresh balances
                     if balances is not None:
                         balances[from_coin] = self.get_balance(from_coin)  # Refresh
                         balances[to_coin] = self.get_balance(to_coin)
@@ -676,8 +698,6 @@ class AbstractArbitrageParser(MarketProcess):
                 try:
                     order_id = await self.async_place_order(category='spot', orderType='Market', **params)
                     filled_qty, avg_price = await self._check_order_filled(order_id, symbol)
-                    if filled_qty < params['qty'] * 0.95:
-                        self.logger.print_message(f"Partial fill for {order_id}: {filled_qty}/{params['qty']}")
                     if params['side'] == 'Sell':
                         actual_received = filled_qty * avg_price * (1 - fee_rate)
                     else:

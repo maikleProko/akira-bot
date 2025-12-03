@@ -8,28 +8,21 @@ from scenarios.parsers.arbitrage_parser.rolling_arbitrage_parser.core.abstract_a
 from collections import defaultdict
 class RollingArbitrageParser(AbstractArbitrageParser):
     async def async_init_chain(self, pos, portion, path, balances):
+        start_coin = path[0]
+        target_coin = path[pos]
         current_amount = portion
-        current_coin = path[0]
-        for step in range(pos):
-            next_coin = path[step + 1]
-            current_amount = await self.async_perform_trade(current_coin, next_coin, current_amount, balances)
-            current_coin = next_coin
+        current_amount = await self.async_perform_trade(start_coin, target_coin, current_amount, balances)
         return current_amount  # Возвращаем, хотя не используется
     async def async_unwind_chain(self, start_idx, path, balances):
-        N = len(path)
-        current_idx = start_idx
-        current_coin = path[current_idx]
-        for _ in range(N - start_idx):
-            next_coin = path[(current_idx + 1) % N]
-            amount = balances.get(current_coin, 0.0) if not self.production else self.get_balance(current_coin)
-            if amount <= 0:
-                break
-            await self.async_perform_trade(current_coin, next_coin, amount, balances)
-            # В prod добавляем небольшую задержку для обновления баланса
-            if self.production:
-                await asyncio.sleep(1)  # 1 сек задержки для синхронизации
-            current_coin = next_coin
-            current_idx = (current_idx + 1) % N
+        start_coin = path[0]
+        current_coin = path[start_idx]
+        amount = balances.get(current_coin, 0.0) if not self.production else self.get_balance(current_coin)
+        if amount <= 0:
+            return
+        await self.async_perform_trade(current_coin, start_coin, amount, balances)
+        # В prod добавляем небольшую задержку для обновления баланса
+        if self.production:
+            await asyncio.sleep(1)  # 1 сек задержки для синхронизации
     def _print_balances(self, balances: Dict[str, float], path: List[str]):
         balance_str = "Balances: " + ", ".join(f"{coin}: {balances.get(coin, 0.0):.4f}" for coin in path)
         self.logger.print_message(balance_str)
@@ -37,6 +30,10 @@ class RollingArbitrageParser(AbstractArbitrageParser):
         """
         Реализация перекатного арбитража.
         """
+
+        if self.is_testing_only_once_in_cycle and self.is_tested_only_once_in_cycle:
+            print('EBLO')
+            return
         path = path_data['path'][:-1] # Цикл без замыкания
         N = len(path)
         start_coin = path[0]
@@ -61,7 +58,7 @@ class RollingArbitrageParser(AbstractArbitrageParser):
         # Цикл переката
         last_good_time = time.time()
         rolled_once = False
-        if self.is_testing_only_once:
+        if self.is_testing_only_once_in_cycle:
             self.logger.print_message("TESTING ONLY ONCE (1/2)")
             self._print_balances(balances, path)
         while True:
@@ -85,22 +82,22 @@ class RollingArbitrageParser(AbstractArbitrageParser):
                 for j in range(N):
                     from_coin = path[j]
                     to_coin = path[(j + 1) % N]
-                    amount = balances[from_coin]
+                    amount = balances[from_coin] if not self.production else self.get_balance(from_coin)
+                    if amount <= 0:
+                        continue
                     trades.append(self.async_perform_trade(from_coin, to_coin, amount, balances))
                 # Запуск асинхронно и ожидание всех
-                results = await asyncio.gather(*trades, return_exceptions=True)
-                # Обработка результатов
-                for res in results:
-                    if isinstance(res, Exception):
-                        self.logger.print_message(f"Trade error: {res}")
-                if not self.production:
-                    for j in range(N):
-                        if not isinstance(results[j], Exception):
-                            # balances[path[(j + 1) % N]] = results[j] # Уже обновлено в async_perform_trade
-                            pass # Нет нужды сбрасывать, balances уже обновлены
+                if trades:
+                    results = await asyncio.gather(*trades, return_exceptions=True)
+                    # Обработка результатов
+                    for res in results:
+                        if isinstance(res, Exception):
+                            self.logger.print_message(f"Trade error: {res}")
+                    if not self.production:
+                        pass # balances updated in sim
                 self.logger.print_message("Roll completed")
-                if self.is_testing_only_once:
-                    rolled_once = True
+                if self.is_testing_only_once_in_cycle:
+                    self.is_tested_only_once_in_cycle = True
                     self.logger.print_message("TESTING ONLY ONCE (2/2)")
                     self._print_balances(balances, path)
                     break
@@ -110,7 +107,7 @@ class RollingArbitrageParser(AbstractArbitrageParser):
                     break
                 self.logger.print_message("Path not profitable, waiting...")
             await asyncio.sleep(1)
-            if self.is_testing_only_once and rolled_once:
+            if self.is_testing_only_once_in_cycle and rolled_once:
                 break
         # Фаза unwind: конвертация обратно в start_coin
         self.logger.print_message(f"Unwinding positions back to {start_coin}")

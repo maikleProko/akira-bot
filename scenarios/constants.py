@@ -30,8 +30,8 @@ arbitrage_parser = BybitRollingArbitrageParser(
     ignore=['RLUSD', 'VIRTUAL'],
     is_real_fee=False,
     believe_score=3,
-    only_once=True,
-    is_testing_only_once=True,
+    is_testing_only_once_out_cycle=True,
+    is_testing_only_once_in_cycle=True,
 )
 
 '''
