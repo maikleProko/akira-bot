@@ -16,13 +16,13 @@ class RollingArbitrageParser(AbstractArbitrageParser):
     async def async_unwind_chain(self, start_idx, path, balances):
         start_coin = path[0]
         current_coin = path[start_idx]
-        amount = balances.get(current_coin, 0.0) if not self.production else self.get_balance(current_coin)
+        amount = balances.get(current_coin, 0.0) if not self.production else await self.async_get_balance(current_coin)
         if amount <= 0:
             return
         await self.async_perform_trade(current_coin, start_coin, amount, balances)
         # В prod добавляем небольшую задержку для обновления баланса
         if self.production:
-            await asyncio.sleep(1)  # 1 сек задержки для синхронизации
+            await asyncio.sleep(0.2)  # Уменьшили задержку
     def _print_balances(self, balances: Dict[str, float], path: List[str]):
         balance_str = "Balances: " + ", ".join(f"{coin}: {balances.get(coin, 0.0):.4f}" for coin in path)
         self.logger.print_message(balance_str)
@@ -39,7 +39,9 @@ class RollingArbitrageParser(AbstractArbitrageParser):
         start_coin = path[0]
         # Инициализация балансов
         if self.production:
-            balances = {coin: self.get_balance(coin) for coin in path}
+            balance_tasks = [self.async_get_balance(coin) for coin in path]
+            balance_results = await asyncio.gather(*balance_tasks)
+            balances = {coin: balance_results[i] for i, coin in enumerate(path)}
             total = balances[start_coin]
         else:
             total = self.deposit
@@ -82,7 +84,7 @@ class RollingArbitrageParser(AbstractArbitrageParser):
                 for j in range(N):
                     from_coin = path[j]
                     to_coin = path[(j + 1) % N]
-                    amount = balances[from_coin] if not self.production else self.get_balance(from_coin)
+                    amount = balances[from_coin] if not self.production else await self.async_get_balance(from_coin)
                     if amount <= 0:
                         continue
                     trades.append(self.async_perform_trade(from_coin, to_coin, amount, balances))
@@ -102,8 +104,8 @@ class RollingArbitrageParser(AbstractArbitrageParser):
                     self._print_balances(balances, path)
                     break
             else:
-                if time.time() - last_good_time > 180: # 3 минуты
-                    self.logger.print_message("Path no longer profitable for 3 min, stopping")
+                if time.time() - last_good_time > 6: # 6 секунд
+                    self.logger.print_message("Path no longer profitable for 6 sec, stopping")
                     break
                 self.logger.print_message("Path not profitable, waiting...")
             await asyncio.sleep(1)

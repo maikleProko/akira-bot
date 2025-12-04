@@ -492,12 +492,18 @@ class AbstractArbitrageParser(MarketProcess):
         raise NotImplementedError
     def get_balance(self, asset):
         raise NotImplementedError
+    async def async_get_balance(self, asset):
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, lambda: self.get_balance(asset))
     def get_fees(self):
         raise NotImplementedError("get_fees должен быть реализован в наследнике")
     def place_order(self, **order_params):
         raise NotImplementedError
     def get_order_history(self, **params):
         raise NotImplementedError
+    async def async_get_order_history(self, **params):
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, lambda: self.get_order_history(**params))
     def sync_get_symbol_price(self, symbol):
         raise NotImplementedError
     async def async_get_symbol_price(self, session, symbol):
@@ -604,7 +610,7 @@ class AbstractArbitrageParser(MarketProcess):
         Проверяет статус ордера и возвращает filled_qty и avg_price.
         """
         for attempt in range(5):
-            history = self.get_order_history(category='spot', orderId=order_id, symbol=symbol)
+            history = await self.async_get_order_history(category='spot', orderId=order_id, symbol=symbol)
             if history and history['retCode'] == 0 and history['result']['list']:
                 order = history['result']['list'][0]
                 status = order['orderStatus']
@@ -616,7 +622,7 @@ class AbstractArbitrageParser(MarketProcess):
                     return filled_qty, avg_price
                 elif status in ['Cancelled', 'Rejected', 'Deactivated']:
                     raise Exception(f"Order {order_id} failed: {status}")
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.2)  # Уменьшили задержку до 0.2 сек для ускорения
         raise Exception(f"Order {order_id} not filled in time")
     def perform_trade(self, from_coin: str, to_coin: str, amount: float, balances: Optional[Dict[str, float]] = None) -> float:
         """
@@ -703,8 +709,8 @@ class AbstractArbitrageParser(MarketProcess):
                     else:
                         actual_received = filled_qty * (1 - fee_rate)
                     if balances is not None:
-                        balances[from_coin] = self.get_balance(from_coin)
-                        balances[to_coin] = self.get_balance(to_coin)
+                        balances[from_coin] = await self.async_get_balance(from_coin)
+                        balances[to_coin] = await self.async_get_balance(to_coin)
                     self.logger.print_message(f"Placed async order {order_id} for {from_coin} -> {to_coin}: {amount} -> {actual_received}")
                     return actual_received
                 except Exception as e:
