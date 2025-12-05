@@ -32,7 +32,6 @@ class RollingArbitrageParser(AbstractArbitrageParser):
         """
 
         if self.is_testing_only_once_in_cycle and self.is_tested_only_once_in_cycle:
-            print('EBLO')
             return
         path = path_data['path'][:-1] # Цикл без замыкания
         N = len(path)
@@ -99,10 +98,16 @@ class RollingArbitrageParser(AbstractArbitrageParser):
                         pass # balances updated in sim
                 self.logger.print_message("Roll completed")
                 if self.is_testing_only_once_in_cycle:
-                    self.is_tested_only_once_in_cycle = True
-                    self.logger.print_message("TESTING ONLY ONCE (2/2)")
+                    count = N
+                    self.is_testing_only_once_in_cycle_counter += 1
+
+                    if self.is_testing_only_once_in_cycle_counter > count:
+                        self.is_tested_only_once_in_cycle = True
+                        break
+                    self.logger.print_message(f"TESTING ONLY ONCE ({self.is_testing_only_once_in_cycle_counter + 1}/{count + 1})")
                     self._print_balances(balances, path)
-                    break
+                    if not self.is_testing_only_once_in_cycle:
+                        break
             else:
                 if time.time() - last_good_time > 6: # 6 секунд
                     self.logger.print_message("Path no longer profitable for 6 sec, stopping")

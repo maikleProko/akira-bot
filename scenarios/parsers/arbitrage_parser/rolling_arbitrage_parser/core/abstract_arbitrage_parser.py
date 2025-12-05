@@ -53,6 +53,7 @@ class AbstractArbitrageParser(MarketProcess):
         self.max_retries = max_retries
         self.believe_score = believe_score
         self.is_testing_only_once_in_cycle = is_testing_only_once_in_cycle
+        self.is_testing_only_once_in_cycle_counter = 0
         self.is_testing_only_once_out_cycle = is_testing_only_once_out_cycle
         self.logger = Logger()
         # Структуры для графа и цен
@@ -638,7 +639,7 @@ class AbstractArbitrageParser(MarketProcess):
         rate = self._get_raw_rate(from_coin, to_coin)
         if rate is None:
             self.logger.print_message(f"Cannot get rate for {from_coin} -> {to_coin}")
-            return 0.0
+            rate = 1
         fee_rate = self.fee_map.get(symbol, self.fee_rate)
         fee = amount * fee_rate
         amount_after_fee = amount - fee

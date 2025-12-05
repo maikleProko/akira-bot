@@ -24,15 +24,14 @@ arbitrage_parser = BybitRollingArbitrageParser(
     api_passphrase='-1',
     strict_coin='USDT',
     strict=True,
-    min_profit=0.1 ,
+    min_profit=0.003,
     max_profit=10.009,
-    fee_rate=-0.1,
+    fee_rate=0,
     ignore=['RLUSD', 'VIRTUAL'],
     is_real_fee=True,
-    believe_score=3,
+    believe_score=1,
     is_testing_only_once_out_cycle=True,
     is_testing_only_once_in_cycle=True,
-    slippage_limit=999
 )
 
 '''
