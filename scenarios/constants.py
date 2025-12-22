@@ -5,7 +5,7 @@ from scenarios.parsers.indicators.instances.choch_indicator import CHoCHIndicato
 
 from scenarios.strategies.historical_strategies.simple_corridor_strategy.simple_corridor_strategy import \
     SimpleCorridorStrategy
-from scenarios.strategies.historical_strategies.smart_money_strategy.smart_money_bearish_choch_strategy import \
+from scenarios.strategies.historical_strategies.smart_money_strategy.choch_strategy import \
     CHoCHStrategy
 
 #SYMBOLS
