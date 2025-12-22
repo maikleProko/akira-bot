@@ -1,7 +1,12 @@
-from scenarios.api_keys import BYBIT_API_KEY, BYBIT_API_SECRET
-from scenarios.parsers.arbitrage_parser.careful_arbitrage_parser.instances.bybit_careful_arbitrage_parser import BybitCarefulArbitrageParser
-from scenarios.parsers.arbitrage_parser.rolling_arbitrage_parser.instances.bybit_rolling_arbitrage_parser import \
-    BybitRollingArbitrageParser
+from scenarios.parsers.history_market_parser.instances.history_binance_parser import HistoryBinanceParser
+from scenarios.parsers.indicators.instances.atr_bounds_indicator import AtrBoundsIndicator
+from scenarios.parsers.indicators.instances.nwe_bounds_indicator import NweBoundsIndicator
+from scenarios.parsers.indicators.instances.choch_indicator import CHoCHIndicator
+
+from scenarios.strategies.historical_strategies.simple_corridor_strategy.simple_corridor_strategy import \
+    SimpleCorridorStrategy
+from scenarios.strategies.historical_strategies.smart_money_strategy.smart_money_bearish_choch_strategy import \
+    CHoCHStrategy
 
 #SYMBOLS
 symbol1 = 'BTC'
@@ -9,51 +14,27 @@ symbol2 = 'USDT'
 
 
 #FOR HISTORICAL TRADING
-realtime = True
-start_time_string='2025/10/21 06:30'
-end_time_string='2025/10/22 15:55'
+realtime = False
+start_time_string='2025/12/22 10:00'
+end_time_string='2025/12/22 15:00'
+
+
+#PROCESSES (PARSERS)
+history_market_parser = HistoryBinanceParser(symbol1, symbol2, 525600)
+nwe_bounds_indicator = NweBoundsIndicator(history_market_parser)
+atr_bounds_indicator = AtrBoundsIndicator(history_market_parser)
+choch_indicator = CHoCHIndicator(history_market_parser)
 
 #PROCESSES (STRATEGIES)
-
-
-arbitrage_parser = BybitRollingArbitrageParser(
-    production=True,
-    deposit=5,
-    api_key=BYBIT_API_KEY,
-    api_secret=BYBIT_API_SECRET,
-    api_passphrase='-1',
-    strict_coin='USDT',
-    strict=True,
-    min_profit=0.003,
-    max_profit=10.009,
-    fee_rate=0,
-    ignore=['RLUSD', 'VIRTUAL'],
-    is_real_fee=True,
-    believe_score=1,
-    is_testing_only_once_out_cycle=True,
-    is_testing_only_once_in_cycle=True,
+choch_strategy = CHoCHStrategy(
+    history_market_parser=history_market_parser,
+    choch_indicator=choch_indicator
 )
-
-'''
-arbitrage_parser = BybitCarefulArbitrageParser(
-    production=True,
-    deposit=0.00011,
-    api_key='3jClHWcEvB2fBLp9Z0',
-    api_secret='DxSDnMvnKJzDXkvNKOKkF5DU5DtXFkq0CG6y',
-    api_passphrase='-1',
-    strict_coin='BTC',
-    strict=True,
-    min_profit=0.006,
-    max_profit=10.009,
-    fee_rate=0.0012,
-    ignore=['RLUSD'],
-    only_once=True,
-    abusing_only_once=True
-)
-'''
 
 
 #MARKET PROCESSES
 MARKET_PROCESSES = [
-    arbitrage_parser
+    history_market_parser,
+    choch_indicator,
+    choch_strategy
 ]
