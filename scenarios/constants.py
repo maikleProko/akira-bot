@@ -1,5 +1,6 @@
 from scenarios.parsers.history_market_parser.instances.history_binance_parser import HistoryBinanceParser
 from scenarios.parsers.indicators.instances.atr_bounds_indicator import AtrBoundsIndicator
+from scenarios.parsers.indicators.instances.kama_indicator import KamaIndicator
 from scenarios.parsers.indicators.instances.nwe_bounds_indicator import NweBoundsIndicator
 from scenarios.parsers.indicators.instances.choch_indicator import CHoCHIndicator
 
@@ -15,26 +16,32 @@ symbol2 = 'USDT'
 
 #FOR HISTORICAL TRADING
 realtime = False
-start_time_string='2025/12/22 10:00'
+start_time_string='2025/12/15 10:00'
 end_time_string='2025/12/22 15:00'
 
 
 #PROCESSES (PARSERS)
-history_market_parser = HistoryBinanceParser(symbol1, symbol2, 525600)
-nwe_bounds_indicator = NweBoundsIndicator(history_market_parser)
-atr_bounds_indicator = AtrBoundsIndicator(history_market_parser)
-choch_indicator = CHoCHIndicator(history_market_parser)
+history_market_parser_1m = HistoryBinanceParser(symbol1, symbol2, 1, 1000)
+history_market_parser_15m = HistoryBinanceParser(symbol1, symbol2, 15, 1000)
+nwe_bounds_indicator = NweBoundsIndicator(history_market_parser_1m)
+atr_bounds_indicator = AtrBoundsIndicator(history_market_parser_1m)
+kama_indicator = KamaIndicator(history_market_parser_15m, 7, 2, 30)
+choch_indicator = CHoCHIndicator(history_market_parser_15m)
 
 #PROCESSES (STRATEGIES)
 choch_strategy = CHoCHStrategy(
-    history_market_parser=history_market_parser,
+    history_market_parser_1m=history_market_parser_1m,
+    history_market_parser_15m=history_market_parser_15m,
+    kama_indicator=kama_indicator,
     choch_indicator=choch_indicator
 )
 
 
 #MARKET PROCESSES
 MARKET_PROCESSES = [
-    history_market_parser,
+    history_market_parser_1m,
+    history_market_parser_15m,
+    kama_indicator,
     choch_indicator,
     choch_strategy
 ]

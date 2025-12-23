@@ -41,7 +41,7 @@ class CHoCHIndicator(Indicator):
     _BEARISH = "BEARISH"
 
     def __init__(self, history_market_parser):
-        self.history_market_parser = history_market_parser
+        super().__init__(history_market_parser)
         self.is_now_CHoCH = False
 
         # Аналог swingStructureSizeInput (size в Pine)

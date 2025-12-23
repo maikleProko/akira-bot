@@ -1,6 +1,6 @@
 import pandas as pd
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import List, Optional
 from scenarios.parsers.history_market_parser.abstracts.history_market_parser import HistoryMarketParser
 
@@ -12,8 +12,8 @@ class HistoryBinanceParser(HistoryMarketParser):
     """
     API_URL = "https://api.binance.com/api/v3/klines"
 
-    def __init__(self, symbol1: str = 'BTC', symbol2: str = 'USDT', minutes: int = 1000):
-        super().__init__("binance")
+    def init(self):
+        self.platform = 'binance'
         self.headers = ["time", "open", "high", "low", "close", "volume"]
 
     def _to_ms(self, dt: datetime) -> int:
@@ -21,7 +21,7 @@ class HistoryBinanceParser(HistoryMarketParser):
 
     def fetch_klines(self,
                      symbol: str,
-                     interval: str = "1m",
+                     interval: str,
                      start_time: Optional[datetime] = None,
                      end_time: Optional[datetime] = None,
                      limit: int = 1000) -> List[List]:
@@ -42,21 +42,31 @@ class HistoryBinanceParser(HistoryMarketParser):
         return rows
 
     def get_df(self,
-                       slash_symbol: str,
-                       interval: str = "1m",
-                       start_time: Optional[datetime] = None,
-                       end_time: Optional[datetime] = None,
-                       limit: int = 1000) -> pd.DataFrame:
+               slash_symbol: str,
+               interval: str = "1m",  # этот параметр теперь игнорируется — используется self.interval_str
+               start_time: Optional[datetime] = None,
+               end_time: Optional[datetime] = None,
+               limit: int = 1000) -> pd.DataFrame:
         """
         Основной метод: получает данные за промежуток и формирует DataFrame.
-        Результат сохраняется в self.df и возвращается.
+        Интервал берётся из self.interval_str (задан при инициализации через timeframe).
         """
         symbol = self.normalize_slash_symbol(slash_symbol)
-        klines = self.fetch_klines(symbol, interval, start_time, end_time, limit)
+
+        # Используем интервал из родительского класса (например, "5m", "15m" и т.д.)
+        klines = self.fetch_klines(
+            symbol=symbol,
+            interval=self.interval_str,  # <-- ключевое изменение
+            start_time=start_time,
+            end_time=end_time,
+            limit=limit
+        )
+
         rows = self._klines_to_rows(klines)
         df = pd.DataFrame(rows, columns=self.headers)
-        self.save_csv(f'files/history_data/last1000_current_history_data_binance_{symbol}.csv', self.headers, rows)
+
+        # Сохранение с указанием таймфрейма для удобства
+        filename = f'files/history_data/last{limit}_candles_binance_{symbol}_{self.interval_str}.csv'
+        self.save_csv(filename, self.headers, rows)
+
         return df
-
-
-
