@@ -1,36 +1,34 @@
 from datetime import datetime
 import pandas as pd
+
+from scenarios.market.regulators.regulator_tpsl import RegulatorTPSL
 from scenarios.parsers.history_market_parser.abstracts.history_market_parser import HistoryMarketParser
-from scenarios.strategies.historical_strategies.smart_money_strategy.choch_strategy import CHoCHStrategy
 from utils.core.functions import MarketProcess
 
 
 # Предполагаем, что у вас есть такой интерфейс/класс
-# from your_module import BuyerTPSLRegulator, Strategy
+# from your_module import RegulatorTPSL, Strategy
 
 
 class BuyerTPSL(MarketProcess):
     """
     Класс, который реализует мониторинг позиции BUY с TP/SL.
-    Входит в позицию при strategy.is_entry_to_deal == True,
+    Входит в позицию при strategy.is_accepted_by_strategy == True,
     затем отслеживает достижение take-profit или stop-loss.
     """
 
     def __init__(
             self,
             history_market_parser: HistoryMarketParser,  # обычно 1m таймфрейм
-            strategy: CHoCHStrategy,  # стратегия, которая даёт is_entry_to_deal
-            buyer_tpsl_regulator,  # объект с .take_profit и .stop_loss (в цене)
+            regulator_tpsl: RegulatorTPSL,  # объект с .take_profit и .stop_loss (в цене)
             symbol1 = 'BTC',
             symbol2 = 'USDT',
             symbol1_all: float = 0.0,  # всего BTC (или другого base)
             symbol2_all: float = 10000.0,  # всего USDT (или quote)
-            symbol1_prepared_converted_amount: float = 0.05,  # сколько BTC планируем купить
             fee: float = 0.0004,  # комиссия 0.04%
     ):
         self.history_market_parser = history_market_parser
-        self.strategy = strategy
-        self.buyer_tpsl_regulator = buyer_tpsl_regulator
+        self.regulator_tpsl = regulator_tpsl
 
         # Состояние позиции
         self.in_position = False
@@ -43,7 +41,6 @@ class BuyerTPSL(MarketProcess):
 
         self.symbol1_all = symbol1_all  # BTC
         self.symbol2_all = symbol2_all  # USDT
-        self.symbol1_prepared_converted_amount = symbol1_prepared_converted_amount  # сколько BTC покупаем
 
         self.fee = fee
 
@@ -76,7 +73,7 @@ class BuyerTPSL(MarketProcess):
 
         # 1. Проверяем сигнал на вход, если ещё не в позиции
         if not self.in_position:
-            if self.strategy.is_entry_to_deal:
+            if self.regulator_tpsl.is_accepted_by_regulator:
                 self._open_position(current_price, current_timestamp)
         else:
             # 2. Уже в позиции → проверяем TP/SL
@@ -84,7 +81,7 @@ class BuyerTPSL(MarketProcess):
 
     def _open_position(self, price: float, timestamp: datetime):
         """Открываем BUY позицию"""
-        amount_to_buy = self.symbol1_prepared_converted_amount
+        amount_to_buy = self.regulator_tpsl.symbol1_prepared_converted_amount
 
         # Сколько USDT уйдёт на покупку + комиссия
         cost = amount_to_buy * price
@@ -117,8 +114,8 @@ class BuyerTPSL(MarketProcess):
 
     def _check_exit_conditions(self, current_price: float, timestamp: datetime):
         """Проверяем условия выхода по TP или SL"""
-        tp = self.buyer_tpsl_regulator.take_profit
-        sl = self.buyer_tpsl_regulator.stop_loss
+        tp = self.regulator_tpsl.take_profit
+        sl = self.regulator_tpsl.stop_loss
 
         # TP/SL задаются в абсолютных ценах
         hit_tp = current_price >= tp
@@ -129,7 +126,7 @@ class BuyerTPSL(MarketProcess):
 
     def _close_position(self, price: float, timestamp: datetime, reason: str):
         """Закрываем позицию — продаём весь купленный объём"""
-        amount_to_sell = self.symbol1_prepared_converted_amount
+        amount_to_sell = self.regulator_tpsl.symbol1_prepared_converted_amount
 
         proceeds = amount_to_sell * price
         fee_cost = proceeds * self.fee

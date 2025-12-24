@@ -42,16 +42,22 @@ class NweBoundsIndicator(Indicator):
                 out[i] = local_out
 
 
-            src = src[::-1]
+            src = src[::-1][-1000:]
             out = out[::-1]
+
+            print(out[-1])
 
             for i in range(500, len(src)):
                 local_mae = 0
+                iter = 0
                 for j in range(0, 499):
-                    local_mae += abs(float(src[i - j]) - out[i - j])
+                    if out[i - j] != 0:
+                        local_mae += abs(float(src[i - j]) - out[i - j])
+                        iter += 1
                 local_mae *= mult
-                local_mae /= 499
+                local_mae /= (iter-1)
                 mae[i] = local_mae
+
 
             upper = out + mae
             lower = out - mae
@@ -63,8 +69,9 @@ class NweBoundsIndicator(Indicator):
 
     def run(self, start_time=None, end_time=None):
         df = self.history_market_parser.df
-        upper, lower = self.get_nadaraya_compute(df['close'])
-        self.bounds = {
-            'upper': upper[-1],
-            'lower': lower[-1],
-        }
+        if len(df) > 500:
+            upper, lower = self.get_nadaraya_compute(df['close'])
+            self.bounds = {
+                'upper': upper[-1],
+                'lower': lower[-1],
+            }

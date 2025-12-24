@@ -6,7 +6,7 @@ from scenarios.strategies.strategy import Strategy
 from utils.core.functions import MarketProcess
 
 
-class BuyerTPSLRegulator(MarketProcess, ABC):
+class RegulatorTPSL(MarketProcess, ABC):
     def __init__(
         self,
         history_market_parser: HistoryMarketParser,
@@ -21,6 +21,7 @@ class BuyerTPSLRegulator(MarketProcess, ABC):
         self.take_profit = None
         self.stop_loss = None
         self.symbol1_prepared_converted_amount = None
+        self.is_accepted_by_regulator = False
 
     @abstractmethod
     def calculate_tpsl(self):
@@ -28,8 +29,12 @@ class BuyerTPSLRegulator(MarketProcess, ABC):
         pass
 
     def _tick(self, current_time: datetime):
-        if self.strategy.is_entry_to_deal:
-            self.calculate_tpsl()
+        self.is_accepted_by_regulator = False
+        if self.strategy.is_accepted_by_strategy:
+            try:
+                self.calculate_tpsl()
+            except Exception as e:
+                print(e)
 
     def run_realtime(self):
         self._tick(datetime.now())

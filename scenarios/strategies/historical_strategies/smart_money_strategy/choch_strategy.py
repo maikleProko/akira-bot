@@ -2,10 +2,10 @@ from scenarios.parsers.history_market_parser.abstracts.history_market_parser imp
 from scenarios.parsers.indicators.instances.atr_bounds_indicator import AtrBoundsIndicator
 from scenarios.parsers.indicators.instances.choch_indicator import CHoCHIndicator
 from scenarios.parsers.indicators.instances.kama_indicator import KamaIndicator
-from utils.core.functions import MarketProcess
+from scenarios.strategies.strategy import Strategy
 
 
-class CHoCHStrategy(MarketProcess):
+class CHoCHStrategy(Strategy):
     def __init__(
         self,
         history_market_parser_1m: HistoryMarketParser,
@@ -22,7 +22,7 @@ class CHoCHStrategy(MarketProcess):
     def run_historical(self, start_time, current_time):
 
         if self.kama_indicator.is_bearish_kamas[-1] and self.kama_indicator.is_bearish_kamas[-2] and self.choch_indicator.is_now_CHoCH:
-            self.is_entry_to_deal = True
+            self.is_accepted_by_strategy = True
 
 
 
