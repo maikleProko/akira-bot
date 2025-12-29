@@ -16,8 +16,8 @@ class RegulatorNWEATR(RegulatorTPSL):
         nwe_bounds_indicator: NweBoundsIndicator,
         atr_bounds_indicator: AtrBoundsIndicator,
         strategy: Strategy,
-        risk_amount: float = 0.01,       # сколько USDT рискуем на сделку (чистый убыток при SL)
-        rr_ratio: float = 1.8,           # желаемое соотношение чистой прибыли к риску
+        risk_amount: float = 10,       # сколько USDT рискуем на сделку (чистый убыток при SL)
+        rr_ratio: float = 1.5,           # желаемое соотношение чистой прибыли к риску
         fee_rate: float = 0.0004,        # комиссия за одну сторону (0.04%)
         min_amount_step: float = 0.00001 # минимальный шаг размера позиции (для округления)
     ):
@@ -39,73 +39,44 @@ class RegulatorNWEATR(RegulatorTPSL):
         nwe_lower = self.nwe_bounds_indicator.bounds.get('lower', entry_price)
         sl_price = min(atr_lower, nwe_lower)
 
-        if sl_price >= entry_price:
+        if sl_price >= entry_price or self.nwe_bounds_indicator.candle_count < 500:
             return
-
 
         # Расстояние до стоп-лосса в цене
         sl_distance = entry_price - sl_price
 
-        # Желаемое чистое соотношение
-        desired_net_reward = self.rr_ratio * self.risk_amount
-
-        # Тейк-профит в цене (пока без учёта комиссии — будет скорректирован позже)
-        tp_distance_rough = self.rr_ratio * sl_distance
-        tp_price_rough = entry_price + tp_distance_rough
-
-        # ───────────────────────────────────────────────────────────────
-        # Самый точный расчёт размера позиции
-        # Пусть x = размер позиции в base-активе (BTC, ETH и т.п.)
-        #
-        # При SL:
-        #   Чистый убыток = x × sl_distance + x × entry_price × fee + x × sl_price × fee
-        #                 = x × (sl_distance + entry_price·fee + sl_price·fee)
-        #   Должно быть ≈ risk_amount (по модулю)
-        #
-        # При TP:
-        #   Чистая прибыль = x × tp_distance - x × entry_price × fee - x × tp_price × fee
-        #                  = x × (tp_distance - entry_price·fee - tp_price·fee)
-        #   Должно быть = desired_net_reward
-        # ───────────────────────────────────────────────────────────────
-
-        # Коэффициент комиссии на вход + выход
-        fee_entry = entry_price * self.fee_rate
-        fee_exit_sl = sl_price * self.fee_rate
-        fee_exit_tp = tp_price_rough * self.fee_rate
+        # Коэффициент комиссии
+        fee = self.fee_rate
+        fee_entry = entry_price * fee
+        fee_exit_sl = sl_price * fee
 
         # Чистый убыток при SL на 1 единицу позиции
         loss_per_unit = sl_distance + fee_entry + fee_exit_sl
 
-        # Размер позиции по риску (без учёта TP)
-        amount_by_risk = self.risk_amount / loss_per_unit
+        # Размер позиции по риску (чтобы net_loss == risk_amount)
+        amount = self.risk_amount / loss_per_unit
 
-        # ───────────────────────────────────────────────────────────────
-        # Корректировка TP и amount, чтобы чистая прибыль была точно desired_net_reward
-        # ───────────────────────────────────────────────────────────────
+        # Округление вниз до шага (консервативно, чтобы не превысить риск)
+        if self.min_amount_step > 0:
+            amount = (amount // self.min_amount_step) * self.min_amount_step
 
-        # Итеративное уточнение (1-2 итерации достаточно)
-        amount = amount_by_risk
-        for _ in range(3):  # обычно хватает 2-х итераций
-            tp_price = entry_price + self.rr_ratio * sl_distance  # базовый TP
-            fee_exit_tp = tp_price * self.fee_rate
+        # Если после округления amount слишком мал, пропустить
+        if amount <= 0:
+            return
 
-            # Чистая прибыль на 1 единицу позиции при TP
-            profit_per_unit = (tp_price - entry_price) - fee_entry - fee_exit_tp
+        # Желаемая чистая прибыль при TP
+        desired_net_reward = self.rr_ratio * self.risk_amount
 
-            # Корректируем размер позиции
-            if profit_per_unit > 0:
-                amount = desired_net_reward / profit_per_unit
-            else:
-                # крайне редкая ситуация (очень высокий TP и комиссии)
-                amount = amount_by_risk
-                break
+        # Точный расчёт расстояния до TP для достижения desired_net_reward
+        # Формула: d_tp = (desired / amount + 2 * fee * entry_price) / (1 - fee)
+        d_tp = (desired_net_reward / amount + 2 * fee * entry_price) / (1 - fee)
 
-            # Округляем до шага минимального лота
-            amount = round(amount / self.min_amount_step) * self.min_amount_step
+        # Обеспечиваем минимальное геометрическое соотношение (d_tp / sl_distance >= min_rr)
+        min_rr = 1.5  # Минимальное соотношение, как указано в запросе
+        min_d_tp = min_rr * sl_distance
+        d_tp = max(d_tp, min_d_tp)
 
-        # Финальный TP (уже с учётом последнего amount, но на практике разница минимальна)
-        tp_distance = self.rr_ratio * sl_distance
-        tp_price = entry_price + tp_distance
+        tp_price = entry_price + d_tp
 
         # Сохраняем результаты
         self.stop_loss = sl_price
@@ -114,7 +85,8 @@ class RegulatorNWEATR(RegulatorTPSL):
         self.is_accepted_by_regulator = True
 
         # Для отладки (можно закомментировать)
-        # gross_profit = amount * (tp_price - entry_price)
+        # fee_exit_tp = tp_price * fee
+        # gross_profit = amount * d_tp
         # total_fees = amount * (fee_entry + fee_exit_tp)
         # net_profit = gross_profit - total_fees
         # print(f"Amount: {amount:.6f} | Net P/L at TP: {net_profit:.2f} | Target: {desired_net_reward:.2f}")

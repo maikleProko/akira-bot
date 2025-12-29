@@ -17,8 +17,9 @@ symbol2 = 'USDT'
 
 #FOR HISTORICAL TRADING
 realtime = False
-start_time_string='2025/12/21 10:00'
-end_time_string='2025/12/22 15:00'
+start_time_string='2025/11/29 16:00'
+end_time_string='2025/12/29 04:00'
+is_printed_ticks = False
 
 
 #PROCESSES (PARSERS)
@@ -31,14 +32,13 @@ choch_indicator = CHoCHIndicator(history_market_parser_15m)
 
 
 #PROCESSES (STRATEGIES)
-'''strategy = CHoCHStrategy(
+strategy = CHoCHStrategy(
     history_market_parser_1m=history_market_parser_1m,
     history_market_parser_15m=history_market_parser_15m,
     kama_indicator=kama_indicator,
     choch_indicator=choch_indicator
 )
-'''
-strategy = Strategy()
+
 
 #PROCESSES (MARKET)
 regulator = RegulatorNWEATR(

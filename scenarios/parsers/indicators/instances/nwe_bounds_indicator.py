@@ -9,12 +9,14 @@ class NweBoundsIndicator(Indicator):
     def __init__(self, history_market_parser: HistoryMarketParser):
         super().__init__(history_market_parser)
         self.bounds = {}
+        self.candle_count = 0
 
-    @staticmethod
-    def get_nadaraya_compute(dataframe, h=8.0, mult=3.0):
+
+
+    def get_nadaraya_compute(self, dataframe, h=8.0, mult=3.0):
         try:
             # Входные параметры
-            src = dataframe
+            src = dataframe[-1000:]
             coefs = []
             den = 0.0
 
@@ -34,6 +36,7 @@ class NweBoundsIndicator(Indicator):
             out = np.zeros(len(src))
             src = src.to_numpy()[::-1]
 
+            self.candle_count = len(src) - 500
             for i in range(0, len(src) - 500):
                 local_out = 0
                 for j in range(0, len(coefs)):
@@ -42,25 +45,23 @@ class NweBoundsIndicator(Indicator):
                 out[i] = local_out
 
 
-            src = src[::-1][-1000:]
+            src = src[::-1]
             out = out[::-1]
-
-            print(out[-1])
 
             for i in range(500, len(src)):
                 local_mae = 0
                 iter = 0
                 for j in range(0, 499):
-                    if out[i - j] != 0:
+                    if out[i - j] > 0:
                         local_mae += abs(float(src[i - j]) - out[i - j])
                         iter += 1
                 local_mae *= mult
-                local_mae /= (iter-1)
+                local_mae /= iter
                 mae[i] = local_mae
-
 
             upper = out + mae
             lower = out - mae
+
 
             return upper, lower
         except:
@@ -69,9 +70,8 @@ class NweBoundsIndicator(Indicator):
 
     def run(self, start_time=None, end_time=None):
         df = self.history_market_parser.df
-        if len(df) > 500:
-            upper, lower = self.get_nadaraya_compute(df['close'])
-            self.bounds = {
-                'upper': upper[-1],
-                'lower': lower[-1],
-            }
+        upper, lower = self.get_nadaraya_compute(df['close'])
+        self.bounds = {
+            'upper': upper[-1],
+            'lower': lower[-1],
+        }

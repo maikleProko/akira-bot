@@ -45,10 +45,11 @@ class RealtimeProcessor(MarketProcessor):
 class HistoricalProcessor(MarketProcessor):
     """Процессор для исторической обработки"""
 
-    def __init__(self, start_time_string, end_time_string, minutes_interval=1):
+    def __init__(self, start_time_string, end_time_string, minutes_interval=1, is_printed_ticks=True):
         self.minutes_interval = minutes_interval
         self.start_time = datetime.strptime(start_time_string, "%Y/%m/%d %H:%M")
         self.end_time = datetime.strptime(end_time_string, "%Y/%m/%d %H:%M")
+        self.is_printed_ticks = is_printed_ticks
 
     def prepare(self):
         """Подготовка для исторической обработки"""
@@ -59,12 +60,13 @@ class HistoricalProcessor(MarketProcessor):
         """Запуск исторической обработки"""
         current_time = self.start_time
         while current_time <= self.end_time:
-            print('[Processor] Tick: ' + current_time.strftime('%Y:%m:%d_%H:%M'))
+            if self.is_printed_ticks:
+                print('[Processor] Tick: ' + current_time.strftime('%Y:%m:%d_%H:%M'))
             try:
                 self._execute_market_processes(current_time)
             except Exception as e:
-                pass
-                print('[Processor] running error: ' + str(e))
+                if self.is_printed_ticks:
+                    print('[Processor] running error: ' + str(e))
             current_time += timedelta(minutes=self.minutes_interval)
 
     def _prepare_market_processes(self):
@@ -81,7 +83,7 @@ class HistoricalProcessor(MarketProcessor):
 class MainProcessor:
     """Главный процессор, управляющий выбором режима работы"""
 
-    def __init__(self, realtime=False, start_time_string=None, end_time_string=None, minutes_interval=1):
+    def __init__(self, realtime=False, start_time_string=None, end_time_string=None, minutes_interval=1, is_printed_ticks=True):
         """
         :param realtime: True для реального времени, False для исторической обработки
         :param start_time_string: формат "YYYY/MM/DD HH:MM" для исторической обработки
@@ -90,6 +92,7 @@ class MainProcessor:
         """
         self.realtime = realtime
         self.minutes_interval = minutes_interval
+        self.is_printed_ticks = is_printed_ticks
 
         # Валидация параметров
         if not realtime and (start_time_string is None or end_time_string is None):
@@ -110,7 +113,8 @@ class MainProcessor:
             self.processor = HistoricalProcessor(
                 start_time_string,
                 end_time_string,
-                self.minutes_interval
+                self.minutes_interval,
+                self.is_printed_ticks
             )
             print("MainProcessor: Инициализирован HistoricalProcessor")
 
@@ -130,5 +134,6 @@ class MainProcessor:
 MainProcessor(
     realtime=realtime,
     start_time_string=start_time_string,
-    end_time_string=end_time_string
+    end_time_string=end_time_string,
+    is_printed_ticks=is_printed_ticks
 )

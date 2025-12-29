@@ -29,8 +29,7 @@ class RegulatorTPSL(MarketProcess, ABC):
         pass
 
     def _tick(self, current_time: datetime):
-        self.is_accepted_by_regulator = False
-        if self.strategy.is_accepted_by_strategy:
+        if self.strategy.is_accepted_by_strategy == True and self.is_accepted_by_regulator == False:
             try:
                 self.calculate_tpsl()
             except Exception as e:

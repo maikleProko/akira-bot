@@ -21,8 +21,12 @@ class CHoCHStrategy(Strategy):
 
     def run_historical(self, start_time, current_time):
 
-        if self.kama_indicator.is_bearish_kamas[-1] and self.kama_indicator.is_bearish_kamas[-2] and self.choch_indicator.is_now_CHoCH:
+        #print(self.choch_indicator.is_now_CHoCH)
+
+        if self.choch_indicator.is_now_CHoCH:
             self.is_accepted_by_strategy = True
+        else:
+            self.is_accepted_by_strategy = False
 
 
 
