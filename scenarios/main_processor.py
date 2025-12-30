@@ -42,6 +42,8 @@ class RealtimeProcessor(MarketProcessor):
             market_process.run()
 
 
+from datetime import datetime, timedelta
+
 class HistoricalProcessor(MarketProcessor):
     """Процессор для исторической обработки"""
 
@@ -59,14 +61,29 @@ class HistoricalProcessor(MarketProcessor):
     def run(self):
         """Запуск исторической обработки"""
         current_time = self.start_time
+        current_date = current_time.date()  # Дата текущей итерации
+        previous_date = None                # Дата предыдущей итерации
+
+        # Выводим начало первого дня сразу
+        print(f'[Processor] === День: {current_date.strftime("%Y-%m-%d")} ===')
+
         while current_time <= self.end_time:
+            current_date = current_time.date()
+
+            # Проверяем, сменился ли день
+            if previous_date is not None and current_date != previous_date:
+                print(f'[Processor] === День: {current_date.strftime("%Y-%m-%d")} ===')
+
             if self.is_printed_ticks:
-                print('[Processor] Tick: ' + current_time.strftime('%Y:%m:%d_%H:%M'))
+                print('[Processor] Tick: ' + current_time.strftime('%Y/%m/%d_%H:%M'))
+
             try:
                 self._execute_market_processes(current_time)
             except Exception as e:
                 if self.is_printed_ticks:
                     print('[Processor] running error: ' + str(e))
+
+            previous_date = current_date
             current_time += timedelta(minutes=self.minutes_interval)
 
     def _prepare_market_processes(self):

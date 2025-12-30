@@ -5,14 +5,15 @@ from scenarios.parsers.indicators.instances.nwe_bounds_indicator import NweBound
 from scenarios.strategies.abstracts.strategy import Strategy
 
 
-class RegulatorNWEATR(RegulatorTPSL):
+class RegulatorNWEATRMinimize(RegulatorTPSL):
     """
     Самый точный расчёт размера позиции с учётом комиссий на вход и выход.
     Чистый профит при достижении TP = rr_ratio × risk_amount
     """
     def __init__(
         self,
-        history_market_parser: HistoryMarketParser,
+        history_market_parser_1m: HistoryMarketParser,
+        history_market_parser_15m: HistoryMarketParser,
         nwe_bounds_indicator: NweBoundsIndicator,
         atr_bounds_indicator: AtrBoundsIndicator,
         strategy: Strategy,
@@ -21,11 +22,12 @@ class RegulatorNWEATR(RegulatorTPSL):
         fee_rate: float = 0.0005,        # комиссия за одну сторону (0.04%)
         min_amount_step: float = 0.00001 # минимальный шаг размера позиции (для округления)
     ):
-        super().__init__(history_market_parser, strategy, risk_amount, rr_ratio)
+        super().__init__(history_market_parser_1m, strategy, risk_amount, rr_ratio)
         self.nwe_bounds_indicator = nwe_bounds_indicator
         self.atr_bounds_indicator = atr_bounds_indicator
         self.fee_rate = fee_rate
         self.min_amount_step = min_amount_step
+        self.history_market_parser=history_market_parser_1m
 
     def calculate_tpsl(self):
         if self.history_market_parser.df is None or self.history_market_parser.df.empty:

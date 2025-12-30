@@ -13,7 +13,7 @@ class NweBoundsIndicator(Indicator):
 
 
 
-    def get_nadaraya_compute(self, dataframe, h=8.0, mult=3.0):
+    def get_nadaraya_compute(self, dataframe, h=8.0, mult=2.4):
         try:
             # Входные параметры
             src = dataframe[-1000:]

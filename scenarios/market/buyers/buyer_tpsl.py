@@ -1,5 +1,7 @@
 from datetime import datetime
 import pandas as pd
+
+from scenarios.market.buyers.balance_usdt import BalanceUSDT
 from scenarios.market.regulators.regulator_tpsl import RegulatorTPSL
 from scenarios.parsers.history_market_parser.abstracts.history_market_parser import HistoryMarketParser
 from utils.core.functions import MarketProcess
@@ -17,9 +19,9 @@ class BuyerTPSL(MarketProcess):
             regulator_tpsl: RegulatorTPSL,  # объект с .take_profit и .stop_loss (в цене)
             symbol1='BTC',
             symbol2='USDT',
-            symbol1_all: float = 0.0,  # всего BTC (или другого base)
-            symbol2_all: float = 10000.0,  # всего USDT (или quote)
-            fee: float = 0.0004,  # комиссия 0.04%
+            symbol1_amount: float = 0.0,  # всего BTC (или другого base)
+            balance_usdt: BalanceUSDT = None,
+            fee: float = 0.001,  # комиссия 0.04%
     ):
         self.history_market_parser = history_market_parser
         self.regulator_tpsl = regulator_tpsl
@@ -30,8 +32,8 @@ class BuyerTPSL(MarketProcess):
         # Балансы
         self.symbol1 = symbol1
         self.symbol2 = symbol2
-        self.symbol1_all = symbol1_all  # BTC
-        self.symbol2_all = symbol2_all  # USDT
+        self.symbol1_amount = symbol1_amount  # BTC
+        self.balance_usdt = balance_usdt
         self.fee = fee
         # Статистика (опционально, для отладки/логов)
         self.trades = []
@@ -72,12 +74,12 @@ class BuyerTPSL(MarketProcess):
         # Сколько USDT уйдёт на покупку + комиссия
         cost = amount_to_buy * price
         fee_cost = cost * self.fee
-        if self.symbol2_all < (cost + fee_cost):
-            print(f"[{timestamp}] Недостаточно {self.symbol2} для открытия позиции")
+        if self.balance_usdt.amount < (cost + fee_cost):
+            #print(f"[{timestamp}] Недостаточно {self.symbol2} для открытия позиции")
             return
         # Выполняем покупку
-        self.symbol2_all -= (cost + fee_cost)
-        self.symbol1_all += amount_to_buy
+        self.balance_usdt.amount -= (cost + fee_cost)
+        self.symbol1_amount += amount_to_buy
         self.in_position = True
         self.entry_price = price
         self.entry_time = timestamp
@@ -117,12 +119,12 @@ class BuyerTPSL(MarketProcess):
         proceeds = amount_to_sell * price
         fee_cost = proceeds * self.fee
         # Получаем USDT обратно
-        self.symbol2_all += (proceeds - fee_cost)
-        self.symbol1_all -= amount_to_sell
-        pnl = (price - self.entry_price) * amount_to_sell - fee_cost * 2  # комиссии на вход и выход
+        self.balance_usdt.amount += (proceeds) # ATTENTION!!!!
+        self.symbol1_amount -= amount_to_sell
+        pnl = (price - self.entry_price) * amount_to_sell - fee_cost  # комиссии на вход и выход
         print(f"[{timestamp}] CLOSE {reason} @ {price:.2f} | "
               f"pnl: {pnl:.2f} USDT | "
-              f"balance USDT: {self.symbol2_all:.2f} | BTC: {self.symbol1_all:.6f}")
+              f"balance USDT: {self.balance_usdt.amount:.2f} | BTC: {self.symbol1_amount:.6f}")
         # Сохраняем информацию о закрытии
         self.trades.append({
             "type": "SELL",

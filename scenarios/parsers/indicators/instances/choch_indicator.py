@@ -43,6 +43,7 @@ class CHoCHIndicator(Indicator):
     def __init__(self, history_market_parser):
         super().__init__(history_market_parser)
         self.is_now_CHoCH = False
+        self.choch_cross_price = None
 
         # Аналог swingStructureSizeInput (size в Pine)
         # Можно переопределить снаружи: indicator.swing_size = <значение из TV>
@@ -57,12 +58,14 @@ class CHoCHIndicator(Indicator):
             * displayStructure(false) — только часть с bullish CHOCH/BOS
         - на последней свече истории выставляем:
             self.is_now_CHoCH = True, если там был bullish CHOCH (swing)
+            self.choch_cross_price = цена уровня пересечения (swing_high_current), если CHOCH произошёл
         """
 
         df = self.history_market_parser.df
 
         # По умолчанию считаем, что сигнала на последней свече нет
         self.is_now_CHoCH = False
+        self.choch_cross_price = None
 
         if df is None or df.empty:
             return
@@ -192,6 +195,7 @@ class CHoCHIndicator(Indicator):
                     # Нас интересует bullish CHOCH на последней свече истории
                     if tag == "CHOCH" and i == n - 1:
                         self.is_now_CHoCH = True
+                        self.choch_cross_price = level
 
                     # Обновляем состояние pivot и тренда, как в Pine
                     swing_high_crossed = True

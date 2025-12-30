@@ -1,7 +1,7 @@
 # bybit_rolling_arbitrage_parser.py
 import requests
 from pybit.unified_trading import HTTP
-from scenarios.parsers.arbitrage_parser.rolling_arbitrage_parser.core.rolling_arbitrage_parser import \
+from scenarios.parsers.arbitrage_parser.rolling_arbitrage_parser.abstracts.rolling_arbitrage_parser import \
     RollingArbitrageParser
 from utils.core.functions import log
 class BybitRollingArbitrageParser(RollingArbitrageParser):

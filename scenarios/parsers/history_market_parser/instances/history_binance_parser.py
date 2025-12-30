@@ -145,7 +145,7 @@ class HistoryBinanceParser(HistoryMarketParser):
             start_str = start_time.strftime("%Y%m%d") if start_time else "begin"
             end_str = end_time.strftime("%Y%m%d") if end_time else "end"
             filename = f'files/history_data/binance_{symbol}_{self.interval_str}_{start_str}_to_{end_str}.csv'
-
+        print(f"[HistoryBinanceParser] csv saved: {self.slash_symbol}")
         self.save_csv(filename, self.headers, rows)
 
         return df

@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 
 from scenarios.parsers.history_market_parser.abstracts.history_market_parser import HistoryMarketParser
-from scenarios.strategies.strategy import Strategy
+from scenarios.strategies.abstracts.strategy import Strategy
 from utils.core.functions import MarketProcess
 
 
