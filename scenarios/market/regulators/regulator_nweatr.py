@@ -39,7 +39,7 @@ class RegulatorNWEATR(RegulatorTPSL):
         nwe_lower = self.nwe_bounds_indicator.bounds.get('lower', entry_price)
         sl_price = min(atr_lower, nwe_lower)
 
-        if sl_price >= entry_price or self.nwe_bounds_indicator.candle_count < 500:
+        if sl_price >= entry_price or self.nwe_bounds_indicator.candle_count < 500 or sl_price == 0:
             return
 
         # Расстояние до стоп-лосса в цене

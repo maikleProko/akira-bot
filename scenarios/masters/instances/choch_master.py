@@ -26,7 +26,8 @@ class CHoCHMaster(MarketMaster):
             history_market_parser_1m=history_market_parser_1m,
             history_market_parser_15m=history_market_parser_15m,
             kama_indicator=kama_indicator,
-            choch_indicator=choch_indicator
+            choch_indicator=choch_indicator,
+            nwe_bounds_indicator=nwe_bounds_indicator
         )
 
         # PROCESSES (MARKET)

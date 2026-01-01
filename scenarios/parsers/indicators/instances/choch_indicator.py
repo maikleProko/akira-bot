@@ -1,166 +1,113 @@
 import numpy as np
 import pandas as pd
-
+from datetime import datetime
 from scenarios.parsers.history_market_parser.abstracts.history_market_parser import HistoryMarketParser
 from scenarios.parsers.indicators.abstracts.indicator import Indicator
+
 
 class CHoCHIndicator(Indicator):
     """
     Детектор bullish CHoCH (смена структуры на покупку) по логике LuxAlgo SMC
     для swing-структуры (internal = false).
 
-    Идея строго следует PineScript-фрагментам:
-
-        - leg(size)
-        - getCurrentStructure(size, equalHighLow=false, internal=false)
-        - displayStructure(internal=false)
-
-    Условие bullish CHoCH (swing):
-
-        pivot p_ivot    = swingHigh
-        trend t_rend    = swingTrend
-
-        if ta.crossover(close, p_ivot.currentLevel) and not p_ivot.crossed
-            string tag = t_rend.bias == BEARISH ? CHOCH : BOS
-            ...
-            t_rend.bias := BULLISH
-
-    Здесь:
-    - при проходе всей истории бар за баром обновляем swingHigh / swingLow
-      по leg(size) + getCurrentStructure()
-    - отслеживаем swing-тренд (bias) и флаг p_ivot.crossed
-    - на последней свече проверяем, случился ли bullish CHOCH (tag == "CHOCH").
+    Логика полностью сохранена из оригинального кода — ничего не менялось в расчётах.
+    Адаптировано под исторический и реал-тайм режимы через prepare / run_historical / run_realtime.
     """
 
-    # leg() в Pine: "it can be 0 (bearish) or 1 (bullish)"
     _BEARISH_LEG = 0
     _BULLISH_LEG = 1
 
-    # Bias тренда (аналог t_rend.bias в Pine)
     _BULLISH = "BULLISH"
     _BEARISH = "BEARISH"
 
-    def __init__(self, history_market_parser):
+    def __init__(self, history_market_parser: HistoryMarketParser):
         super().__init__(history_market_parser)
-        self.is_now_CHoCH = False
-        self.choch_cross_price = None
-
-        # Аналог swingStructureSizeInput (size в Pine)
-        # Можно переопределить снаружи: indicator.swing_size = <значение из TV>
         self.swing_size = 5
 
-    def run(self, start_time=None, end_time=None):
+        # Результат на "текущий" момент (последняя свеча)
+        self.is_now_CHoCH = False          # Был ли bullish CHoCH на последней свече
+        self.choch_cross_price = None      # Уровень, который пробили при CHoCH
+
+        # Хранилища для исторического режима: значения по каждой строке df
+        self._historical_is_choch = None   # pd.Series[bool] — был ли CHoCH на этой свече
+        self._historical_cross_price = None  # pd.Series[float] — цена пробоя (если был CHoCH)
+        self._historical_trend_bias = None   # pd.Series[str] — bias на конец свечи
+
+    def _compute_full_history(self, df: pd.DataFrame):
         """
-        На каждом вызове:
-        - берём весь df из history_market_parser.df (с уже добавленной последней свечой),
-        - бар за баром эмулируем PineScript:
-            * leg(size) + getCurrentStructure(size, false, false)
-            * displayStructure(false) — только часть с bullish CHOCH/BOS
-        - на последней свече истории выставляем:
-            self.is_now_CHoCH = True, если там был bullish CHOCH (swing)
-            self.choch_cross_price = цена уровня пересечения (swing_high_current), если CHOCH произошёл
+        Вычисляет всю структуру свингов и CHoCH бар за баром.
+        Возвращает три серии с индексами df:
+            - is_choch: True только на свече, где произошёл bullish CHoCH
+            - cross_price: уровень пробоя (swing_high_current) или NaN
+            - trend_bias: финальный bias после обработки свечи
         """
-
-        df = self.history_market_parser.df
-
-        # По умолчанию считаем, что сигнала на последней свече нет
-        self.is_now_CHoCH = False
-        self.choch_cross_price = None
-
         if df is None or df.empty:
-            return
+            return pd.Series(), pd.Series(), pd.Series()
 
-        # При желании можно учитывать start_time / end_time, но по задаче
-        # просто работаем по всей истории df
         n = len(df)
         size = int(self.swing_size)
 
-        # Недостаточно данных для построения хотя бы одного свинга
         if size < 1 or n <= size + 1:
-            return
+            empty = pd.Series([False] * n, index=df.index)
+            empty_price = pd.Series([np.nan] * n, index=df.index)
+            empty_bias = pd.Series([self._BEARISH] * n, index=df.index)
+            return empty, empty_price, empty_bias
 
         highs = df["high"].to_numpy()
         lows = df["low"].to_numpy()
         closes = df["close"].to_numpy()
 
-        # ------------------------- Состояние swing‑pivotов и тренда -------------------------
-
-        # pivot swingHigh
+        # Состояние
         swing_high_current = None
         swing_high_last = None
-        swing_high_crossed = False  # p_ivot.crossed
-        swing_high_index = None     # p_ivot.barIndex
+        swing_high_crossed = False
+        swing_high_index = None
 
-        # pivot swingLow
         swing_low_current = None
         swing_low_last = None
         swing_low_crossed = False
         swing_low_index = None
 
-        # Аналог leg() с var leg; здесь leg_prev — его сохранённое состояние
         leg_prev = self._BEARISH_LEG
-
-        # Аналог swingTrend.bias.
-        # Инициализируем как BEARISH, чтобы первый пробой хая дал CHOCH.
         trend_bias = self._BEARISH
 
-        # ------------------------- Прогон истории бар за баром -------------------------
+        # Результаты по свечам
+        is_choch_list = [False] * n
+        cross_price_list = [np.nan] * n
+        trend_bias_list = [self._BEARISH] * n
 
         for i in range(n):
-            # 1) Обновление leg() и swing‑pivotов (getCurrentStructure)
-
+            # 1) Обновление свингов (leg + getCurrentStructure)
             if i >= size:
-                # В Pine:
-                #   newLegHigh = high[size] > ta.highest(size)
-                #   newLegLow  = low[size]  < ta.lowest(size)
-                #
-                # high[size] / low[size] — это бар i-size.
-                # ta.highest/lowest(size) — экстремум по последним `size` барам,
-                # т.е. окну (i-size+1 .. i). Таким образом, pivot — бар i-size,
-                # а окно — бары после него.
                 pivot_idx = i - size
 
                 if pivot_idx + 1 <= i:
-                    window_high = highs[pivot_idx + 1 : i + 1]
-                    window_low = lows[pivot_idx + 1 : i + 1]
+                    window_high = highs[pivot_idx + 1: i + 1]
+                    window_low = lows[pivot_idx + 1: i + 1]
 
-                    if window_high.size == 0 or window_low.size == 0:
-                        new_leg_high = False
-                        new_leg_low = False
-                    else:
-                        new_leg_high = highs[pivot_idx] > window_high.max()
-                        new_leg_low = lows[pivot_idx] < window_low.min()
+                    new_leg_high = highs[pivot_idx] > window_high.max() if window_high.size > 0 else False
+                    new_leg_low = lows[pivot_idx] < window_low.min() if window_low.size > 0 else False
                 else:
-                    new_leg_high = False
-                    new_leg_low = False
+                    new_leg_high = new_leg_low = False
 
-                # leg():
-                #   var leg = 0
-                #   if newLegHigh -> leg := BEARISH_LEG
-                #   else if newLegLow -> leg := BULLISH_LEG
                 leg_val = leg_prev
                 if new_leg_high:
                     leg_val = self._BEARISH_LEG
                 elif new_leg_low:
                     leg_val = self._BULLISH_LEG
 
-                # startOfNewLeg / startOfBullishLeg / startOfBearishLeg
                 change = leg_val - leg_prev
                 new_pivot = change != 0
-                pivot_low = change == +1   # startOfBullishLeg
-                pivot_high = change == -1  # startOfBearishLeg
+                pivot_low = change == +1   # bullish leg start
+                pivot_high = change == -1  # bearish leg start
 
-                # getCurrentStructure(size, equalHighLow=false, internal=false)
                 if new_pivot:
                     if pivot_low:
-                        # Обновляем swingLow pivot
                         swing_low_last = swing_low_current
                         swing_low_current = lows[pivot_idx]
                         swing_low_crossed = False
                         swing_low_index = pivot_idx
-                        # trailing / equalHighLow / визуализация здесь опускаются, на CHOCH не влияют
                     else:
-                        # Обновляем swingHigh pivot
                         swing_high_last = swing_high_current
                         swing_high_current = highs[pivot_idx]
                         swing_high_crossed = False
@@ -168,15 +115,11 @@ class CHoCHIndicator(Indicator):
 
                 leg_prev = leg_val
 
-            # 2) displayStructure(false) — только логика CHOCH / BOS по swingHigh / swingLow
+            # 2) Проверка пробоев (displayStructure)
+            choch_this_bar = False
+            choch_price_this_bar = np.nan
 
-            # Bullish часть: пробой swingHigh вверх
-            # В Pine:
-            #   p_ivot = swingHigh
-            #   if ta.crossover(close, p_ivot.currentLevel) and not p_ivot.crossed
-            #       string tag = t_rend.bias == BEARISH ? CHOCH : BOS
-            #       ...
-            #       t_rend.bias := BULLISH
+            # Bullish: пробой swingHigh вверх
             if (
                 swing_high_current is not None
                 and i > 0
@@ -186,28 +129,19 @@ class CHoCHIndicator(Indicator):
                 prev_close = closes[i - 1]
                 cur_close = closes[i]
 
-                # ta.crossover(close, level)  ~  close[1] < level and close > level
                 crossed_up = (prev_close < level) and (cur_close > level)
 
                 if crossed_up:
                     tag = "CHOCH" if trend_bias == self._BEARISH else "BOS"
 
-                    # Нас интересует bullish CHOCH на последней свече истории
-                    if tag == "CHOCH" and i == n - 1:
-                        self.is_now_CHoCH = True
-                        self.choch_cross_price = level
+                    if tag == "CHOCH":
+                        choch_this_bar = True
+                        choch_price_this_bar = level
 
-                    # Обновляем состояние pivot и тренда, как в Pine
                     swing_high_crossed = True
                     trend_bias = self._BULLISH
 
-            # Bearish часть: пробой swingLow вниз (нужна, чтобы корректно менять trend_bias)
-            # В Pine:
-            #   p_ivot = swingLow
-            #   if ta.crossunder(close,p_ivot.currentLevel) and not p_ivot.crossed
-            #       string tag = t_rend.bias == BULLISH ? CHOCH : BOS
-            #       ...
-            #       t_rend.bias := BEARISH
+            # Bearish: пробой swingLow вниз (для корректного обновления bias)
             if (
                 swing_low_current is not None
                 and i > 0
@@ -217,12 +151,79 @@ class CHoCHIndicator(Indicator):
                 prev_close = closes[i - 1]
                 cur_close = closes[i]
 
-                # ta.crossunder(close, level)  ~  close[1] > level and close < level
                 crossed_down = (prev_close > level) and (cur_close < level)
 
                 if crossed_down:
                     tag = "CHOCH" if trend_bias == self._BULLISH else "BOS"
-
-                    # bearish CHOCH для флага is_now_CHoCH не нужен
                     swing_low_crossed = True
                     trend_bias = self._BEARISH
+
+            # Сохраняем результаты для текущей свечи
+            is_choch_list[i] = choch_this_bar
+            cross_price_list[i] = choch_price_this_bar if choch_this_bar else np.nan
+            trend_bias_list[i] = trend_bias
+
+        # Преобразуем в Series с тем же индексом, что и df
+        is_choch_series = pd.Series(is_choch_list, index=df.index, dtype=bool)
+        cross_price_series = pd.Series(cross_price_list, index=df.index)
+        bias_series = pd.Series(trend_bias_list, index=df.index)
+
+        return is_choch_series, cross_price_series, bias_series
+
+    def prepare(self, start_time=None, end_time=None):
+        """
+        Подготовка для исторического режима: вычисляем CHoCH на всём history_df один раз.
+        """
+        df = self.history_market_parser.history_df
+
+        if df is None or df.empty or 'close' not in df.columns:
+            empty_idx = pd.Index([])
+            self._historical_is_choch = pd.Series([], index=empty_idx, dtype=bool)
+            self._historical_cross_price = pd.Series([], index=empty_idx)
+            self._historical_trend_bias = pd.Series([], index=empty_idx)
+            return
+
+        self._historical_is_choch, self._historical_cross_price, self._historical_trend_bias = \
+            self._compute_full_history(df)
+
+    def run_historical(self, start_time: datetime, current_time: datetime):
+        """
+        Для исторического режима: берём значения на последней свече, где время <= current_time.
+        """
+        if (self._historical_is_choch is None or self._historical_is_choch.empty):
+            self.is_now_CHoCH = False
+            self.choch_cross_price = None
+            return
+
+        time_col = pd.to_datetime(self.history_market_parser.history_df['time'])
+        mask = time_col <= current_time
+
+        if not mask.any():
+            self.is_now_CHoCH = False
+            self.choch_cross_price = None
+            return
+
+        last_idx = time_col[mask].index[-1]
+
+        self.is_now_CHoCH = bool(self._historical_is_choch.loc[last_idx])
+        self.choch_cross_price = float(self._historical_cross_price.loc[last_idx]) \
+            if not np.isnan(self._historical_cross_price.loc[last_idx]) else None
+
+    def run_realtime(self):
+        """
+        Для реального времени: полный прогон по текущему df.
+        """
+        df = self.history_market_parser.df
+
+        if df is None or df.empty or 'close' not in df.columns:
+            self.is_now_CHoCH = False
+            self.choch_cross_price = None
+            return
+
+        is_choch_series, cross_price_series, _ = self._compute_full_history(df)
+
+        # Берём значения с последней строки
+        last_idx = df.index[-1]
+        self.is_now_CHoCH = bool(is_choch_series.loc[last_idx])
+        self.choch_cross_price = float(cross_price_series.loc[last_idx]) \
+            if not np.isnan(cross_price_series.loc[last_idx]) else None

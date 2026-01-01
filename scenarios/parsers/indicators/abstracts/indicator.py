@@ -13,3 +13,6 @@ class Indicator(MarketProcess):
     def run_realtime(self):
         pass
 
+    def run_historical(self, start_time, current_time):
+        pass
+
