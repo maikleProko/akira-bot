@@ -43,3 +43,6 @@ class MarketProcess:
             self.run_realtime()
         else:
             self.run_historical(start_time, current_time)
+
+    def finalize(self):
+        pass

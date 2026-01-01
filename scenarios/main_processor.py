@@ -86,6 +86,9 @@ class HistoricalProcessor(MarketProcessor):
             previous_date = current_date
             current_time += timedelta(minutes=self.minutes_interval)
 
+        for process in MARKET_PROCESSES:
+            process.finalize()
+
     def _prepare_market_processes(self):
         """Подготовка рыночных процессов для исторического режима"""
         for market_process in MARKET_PROCESSES:
