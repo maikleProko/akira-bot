@@ -31,8 +31,10 @@ class CHoCHStrategy(Strategy):
            self.kama_indicator_15m.trend == "BULLISH" and \
            self.kama_indicator_15m.trend2 == "BULLISH" and \
            self.kama_indicator_15m.trend3 == "BULLISH" and \
-           self.kama_indicator_30m.trend == "BULLISH":
-            self.is_accepted_by_strategy = True
+           self.kama_indicator_30m.trend == "BULLISH" and \
+           self.kama_indicator_30m.trend2 == "BULLISH" and \
+           self.kama_indicator_30m.trend3 == "BULLISH":
+           self.is_accepted_by_strategy = True
         else:
             self.is_accepted_by_strategy = False
 
