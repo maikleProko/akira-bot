@@ -27,7 +27,8 @@ class CHoCHStrategy(Strategy):
            self.choch_indicator.choch_cross_price <= self.history_market_parser_1m.df['close'].iloc[-1] and \
            self.kama_indicator.trend == "BULLISH" and \
            self.kama_indicator.trend2 == "BULLISH" and \
-           self.kama_indicator.trend3 == "BULLISH":
+           self.kama_indicator.trend3 == "BULLISH" and \
+           self.kama_indicator.kama_value > self.nwe_bounds_indicator.bounds['out']:
             self.is_accepted_by_strategy = True
         else:
             self.is_accepted_by_strategy = False
