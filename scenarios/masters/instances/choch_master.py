@@ -17,7 +17,7 @@ class CHoCHMaster(MarketMaster):
         history_market_parser_1m = HistoryBinanceParser(symbol1, symbol2, 1, 1000, mode)
         history_market_parser_5m = HistoryBinanceParser(symbol1, symbol2, 5, 1000, mode)
         history_market_parser_15m = HistoryBinanceParser(symbol1, symbol2, 15, 1000, mode)
-        history_market_parser_30m = HistoryBinanceParser(symbol1, symbol2, 5, 1000, mode)
+        history_market_parser_30m = HistoryBinanceParser(symbol1, symbol2, 30, 1000, mode)
         history_market_parser_60m = HistoryBinanceParser(symbol1, symbol2, 60, 1000, mode)
         nwe_bounds_indicator = NweBoundsIndicator(history_market_parser_1m)
         atr_bounds_indicator = AtrBoundsIndicator(history_market_parser_1m)
