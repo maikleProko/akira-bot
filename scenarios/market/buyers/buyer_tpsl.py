@@ -102,8 +102,8 @@ class BuyerTPSL(MarketProcess):
             self._close_position(sl, timestamp, "SL")
             return
 
-        if current_price >= tp:
-            self._close_position(current_price, timestamp, "TP")
+        if last_row['high'] >= tp:
+            self._close_position(tp, timestamp, "TP")
 
     def _close_position(self, price: float, timestamp: datetime, reason: str):
         amount_to_sell = self.regulator_tpsl.symbol1_prepared_converted_amount
