@@ -11,8 +11,9 @@ class CHoCHStrategy(Strategy):
         history_market_parser_1m: HistoryMarketParser,
         history_market_parser_15m: HistoryMarketParser,
         kama_indicator_60m: KamaIndicator,
-        kama_indicator_30m: KamaIndicator,
         kama_indicator_15m: KamaIndicator,
+        kama_indicator_30m: KamaIndicator,
+        kama_indicator_5m: KamaIndicator,
         kama_indicator_1m: KamaIndicator,
         choch_indicator: CHoCHIndicator,
         nwe_bounds_indicator: NweBoundsIndicator
@@ -21,8 +22,9 @@ class CHoCHStrategy(Strategy):
         self.history_market_parser_1m=history_market_parser_1m
         self.history_market_parser_15m=history_market_parser_15m
         self.kama_indicator_60m=kama_indicator_60m
-        self.kama_indicator_30m=kama_indicator_30m
         self.kama_indicator_15m=kama_indicator_15m
+        self.kama_indicator_30m=kama_indicator_30m
+        self.kama_indicator_5m=kama_indicator_5m
         self.kama_indicator_1m=kama_indicator_1m
         self.choch_indicator=choch_indicator
         self.nwe_bounds_indicator=nwe_bounds_indicator
@@ -30,6 +32,8 @@ class CHoCHStrategy(Strategy):
     def run_historical(self, start_time, current_time):
         if self.choch_indicator.is_now_CHoCH and \
            self.choch_indicator.choch_cross_price <= self.history_market_parser_1m.df['close'].iloc[-1] and \
+           self.kama_indicator_5m.trend == "BULLISH" and \
+           self.kama_indicator_5m.trend2 == "BULLISH" and \
            self.kama_indicator_15m.trend == "BULLISH" and \
            self.kama_indicator_15m.trend2 == "BULLISH" and \
            self.kama_indicator_15m.trend3 == "BULLISH" and \

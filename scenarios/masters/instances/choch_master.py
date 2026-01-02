@@ -15,14 +15,16 @@ class CHoCHMaster(MarketMaster):
 
         # PROCESSES (PARSERS)
         history_market_parser_1m = HistoryBinanceParser(symbol1, symbol2, 1, 1000, mode)
+        history_market_parser_5m = HistoryBinanceParser(symbol1, symbol2, 5, 1000, mode)
         history_market_parser_15m = HistoryBinanceParser(symbol1, symbol2, 15, 1000, mode)
-        history_market_parser_30m = HistoryBinanceParser(symbol1, symbol2, 30, 1000, mode)
+        history_market_parser_30m = HistoryBinanceParser(symbol1, symbol2, 5, 1000, mode)
         history_market_parser_60m = HistoryBinanceParser(symbol1, symbol2, 60, 1000, mode)
         nwe_bounds_indicator = NweBoundsIndicator(history_market_parser_1m)
         atr_bounds_indicator = AtrBoundsIndicator(history_market_parser_1m)
         kama_indicator_60m = KamaIndicator(history_market_parser_60m, 7, 2, 30)
         kama_indicator_30m = KamaIndicator(history_market_parser_30m, 7, 2, 30)
         kama_indicator_15m = KamaIndicator(history_market_parser_15m, 7, 2, 30)
+        kama_indicator_5m = KamaIndicator(history_market_parser_5m, 7, 2, 30)
         kama_indicator_1m = KamaIndicator(history_market_parser_15m, 7, 2, 30)
         choch_indicator = CHoCHIndicator(history_market_parser_15m)
 
@@ -33,6 +35,7 @@ class CHoCHMaster(MarketMaster):
             kama_indicator_60m=kama_indicator_60m,
             kama_indicator_30m=kama_indicator_30m,
             kama_indicator_15m=kama_indicator_15m,
+            kama_indicator_5m=kama_indicator_5m,
             kama_indicator_1m = kama_indicator_1m,
             choch_indicator=choch_indicator,
             nwe_bounds_indicator=nwe_bounds_indicator
@@ -56,12 +59,14 @@ class CHoCHMaster(MarketMaster):
 
         self.market_processes = [
             history_market_parser_1m,
+            history_market_parser_5m,
             history_market_parser_15m,
             history_market_parser_30m,
             history_market_parser_60m,
             kama_indicator_60m,
             kama_indicator_30m,
             kama_indicator_15m,
+            kama_indicator_5m,
             kama_indicator_1m,
             choch_indicator,
             atr_bounds_indicator,
