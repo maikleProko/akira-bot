@@ -1,5 +1,6 @@
 from datetime import datetime
 import pandas as pd
+import os
 
 from scenarios.market.buyers.balance_usdt import BalanceUSDT
 from scenarios.market.regulators.regulator_tpsl import RegulatorTPSL
@@ -42,6 +43,23 @@ class BuyerTPSL(MarketProcess):
         # Статистика сделок
         self.trades = []
 
+        # Логирование: путь к файлу по дате создания
+        log_date = datetime.now().strftime("%Y%m%d")
+        log_dir = "files/decisions"
+        os.makedirs(log_dir, exist_ok=True)
+        self.log_file = os.path.join(log_dir, f"decisions_{log_date}.txt")
+        self._log(f"\n=== НОВАЯ СЕССИЯ БЭКТЕСТА / РЕАЛ-ТАЙМ ===\n"
+                  f"Пара: {symbol1}/{symbol2} | Начальный баланс: {balance_usdt.amount:.2f} USDT\n")
+
+    def _log(self, message: str):
+        """Записывает сообщение в лог-файл с временной меткой"""
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_entry = f"[{timestamp}] {message}\n"
+        with open(self.log_file, "a", encoding="utf-8") as f:
+            f.write(log_entry)
+        # Также выводим в консоль (как было)
+        print(log_entry.strip())
+
     def prepare(self, start_time: datetime = None, end_time: datetime = None):
         """Подготовка — ничего особенного"""
         pass
@@ -73,20 +91,22 @@ class BuyerTPSL(MarketProcess):
         fee_cost = cost * self.fee
 
         if self.balance_usdt.amount < (cost + fee_cost):
-            # print(f"[{timestamp}] Недостаточно USDT для входа")
             return
 
-        self.balance_usdt.amount -= (cost + fee_cost)
+        self.balance_usdt.amount -= cost
         self.symbol1_amount += amount_to_buy
 
         self.in_position = True
         self.entry_price = price
         self.entry_time = timestamp
 
-        print(f"[{timestamp}] BUY OPEN @ {price:.2f} | "
-              f"amount: {amount_to_buy:.6f} {self.symbol1} | "
-              f"TP: {self.regulator_tpsl.take_profit:.2f} | "
-              f"SL: {self.regulator_tpsl.stop_loss:.2f}")
+        log_msg = (f"BUY OPEN @ {price:.2f} | "
+                   f"amount: {amount_to_buy:.6f} {self.symbol1} | "
+                   f"TP: {self.regulator_tpsl.take_profit:.2f} | "
+                   f"SL: {self.regulator_tpsl.stop_loss:.2f} | "
+        )
+
+        self._log(log_msg)
 
         self.trades.append({
             "type": "BUY",
@@ -100,38 +120,37 @@ class BuyerTPSL(MarketProcess):
         tp = self.regulator_tpsl.take_profit
         sl = self.regulator_tpsl.stop_loss
 
-        # Сначала SL по low (логика 2)
         if last_row['low'] <= sl:
             self._close_position(sl, timestamp, "SL")
             return
 
-        # Затем TP по close (логика 1)
         if current_price >= tp:
             self._close_position(current_price, timestamp, "TP")
 
     def _close_position(self, price: float, timestamp: datetime, reason: str):
-        """Закрытие позиции по указанной цене и причине"""
         amount_to_sell = self.regulator_tpsl.symbol1_prepared_converted_amount
         self.regulator_tpsl.is_accepted_by_regulator = False
 
         proceeds = amount_to_sell * price
         fee_cost = proceeds * self.fee
 
-        # Исправлено: вычитаем комиссию при продаже
         self.balance_usdt.amount += (proceeds - fee_cost)
         self.symbol1_amount -= amount_to_sell
 
-        total_fees = 0  # можно посчитать из входа + выхода
+        total_fees = 0
         if self.trades:
             entry_trade = [t for t in self.trades if t["type"] == "BUY"][-1]
             total_fees = entry_trade.get("fee", 0) + fee_cost
 
         pnl = (price - self.entry_price) * amount_to_sell - total_fees
 
-        print(f"[{timestamp}] CLOSE {reason} @ {price:.2f} | "
-              f"pnl: {pnl:+.2f} USDT | "
-              f"balance: {self.balance_usdt.amount:.2f} USDT | "
-              f"{self.symbol1}: {self.symbol1_amount:.6f}")
+        log_msg = (f"CLOSE {reason} @ {price:.2f} | "
+                   f"pnl: {pnl:+.2f} USDT | "
+                   f"balance: {self.balance_usdt.amount:.2f} USDT | "
+                   f"{self.symbol1}: {self.symbol1_amount:.6f} | "
+                   f"fee_exit: {fee_cost:.2f} USDT")
+
+        self._log(log_msg)
 
         self.trades.append({
             "type": "SELL",
@@ -143,7 +162,6 @@ class BuyerTPSL(MarketProcess):
             "fee": fee_cost
         })
 
-        # Сброс состояния
         self.in_position = False
         self.entry_price = None
         self.entry_time = None
@@ -151,21 +169,23 @@ class BuyerTPSL(MarketProcess):
     def finalize(self):
         """
         Вызывается в конце исторического бэктекста.
-        Если позиция осталась открытой — принудительно закрываем по последней цене close.
-        Это гарантирует корректный подсчёт итогового баланса и PnL.
+        Если позиция осталась открытой — принудительно закрываем.
         """
         if not self.in_position:
-            return  # Нечего закрывать
+            self._log("[END OF BACKTEST] Позиций нет — ничего не закрываем.")
+            return
 
         if self.history_market_parser.df is None or self.history_market_parser.df.empty:
-            print("[finalize_position] Нет данных для закрытия позиции!")
+            self._log("[finalize] Нет данных для закрытия позиции!")
             return
 
         last_row = self.history_market_parser.df.iloc[-1]
         final_price = last_row['close']
         final_timestamp = pd.to_datetime(last_row['time'])
 
-        print(f"\n[END OF BACKTEST] Принудительное закрытие открытой позиции по рыночной цене")
+        self._log(f"[END OF BACKTEST] Принудительное закрытие открытой позиции по цене {final_price:.2f}")
+
         self._close_position(final_price, final_timestamp, "FINAL_CLOSE")
 
-        print(f"[BACKTEST FINISHED] Итоговый баланс: {self.balance_usdt.amount:.2f} USDT {self.symbol1}: {self.symbol1_amount:.6f}")
+        self._log(f"[BACKTEST FINISHED] Итоговый баланс: {self.balance_usdt.amount:.2f} USDT | "
+                  f"{self.symbol1}: {self.symbol1_amount:.6f}")

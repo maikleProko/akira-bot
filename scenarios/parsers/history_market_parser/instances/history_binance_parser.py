@@ -1,5 +1,6 @@
 import pandas as pd
 import requests
+import os
 from datetime import datetime, timedelta
 from typing import List, Optional
 from scenarios.parsers.history_market_parser.abstracts.history_market_parser import HistoryMarketParser
@@ -7,12 +8,10 @@ from scenarios.parsers.history_market_parser.abstracts.history_market_parser imp
 
 class HistoryBinanceParser(HistoryMarketParser):
     """
-    Парсер для Binance. Получает kline (candlestick) данные и формирует DataFrame:
-    time(+3h), open, high, low, close, volume
+    Парсер Binance с поддержкой mode="generating"/"loading"
     """
     API_URL = "https://api.binance.com/api/v3/klines"
 
-    # Приблизительные дельты для сдвига startTime (можно расширить)
     INTERVAL_DELTAS = {
         "1m": timedelta(minutes=1),
         "3m": timedelta(minutes=3),
@@ -28,7 +27,7 @@ class HistoryBinanceParser(HistoryMarketParser):
         "1d": timedelta(days=1),
         "3d": timedelta(days=3),
         "1w": timedelta(weeks=1),
-        "1M": timedelta(days=31),  # приблизительно
+        "1M": timedelta(days=31),
     }
 
     def init(self):
@@ -41,43 +40,23 @@ class HistoryBinanceParser(HistoryMarketParser):
     def _ms_to_dt(self, ms: int) -> datetime:
         return datetime.fromtimestamp(ms / 1000)
 
-    def fetch_klines(self,
-                     symbol: str,
-                     interval: str,
-                     start_time: Optional[datetime] = None,
-                     end_time: Optional[datetime] = None,
-                     limit: Optional[int] = None) -> List[List]:
-        """
-        Если limit указан — один запрос.
-        Если limit is None — итеративно по 1000 свечей до конца диапазона.
-        """
+    def fetch_klines(self, symbol: str, interval: str, start_time=None, end_time=None, limit=None) -> List[List]:
+        # (тот же код, что был раньше — без изменений)
         all_klines: List[List] = []
 
-        # Если явно задан limit — делаем один запрос и возвращаем
         if limit is not None:
-            params = {
-                "symbol": symbol,
-                "interval": interval,
-                "limit": limit
-            }
+            params = {"symbol": symbol, "interval": interval, "limit": limit}
             if start_time:
                 params["startTime"] = self._to_ms(start_time)
             if end_time:
                 params["endTime"] = self._to_ms(end_time)
-
             resp = requests.get(self.API_URL, params=params, timeout=10)
             resp.raise_for_status()
             return resp.json()
 
-        # Иначе — итеративный режим (по 1000)
-        current_start: Optional[datetime] = start_time
-
+        current_start = start_time
         while True:
-            params = {
-                "symbol": symbol,
-                "interval": interval,
-                "limit": 1000
-            }
+            params = {"symbol": symbol, "interval": interval, "limit": 1000}
             if current_start:
                 params["startTime"] = self._to_ms(current_start)
             if end_time:
@@ -86,28 +65,21 @@ class HistoryBinanceParser(HistoryMarketParser):
             resp = requests.get(self.API_URL, params=params, timeout=10)
             resp.raise_for_status()
             klines = resp.json()
-
             if not klines:
                 break
-
             all_klines.extend(klines)
 
-            # Последняя полученная свеча
             last_open_ms = int(klines[-1][0])
             last_open_dt = self._ms_to_dt(last_open_ms)
-
-            # Сдвигаем start на время открытия следующей свечи
             delta = self.INTERVAL_DELTAS.get(interval)
             if delta is None:
-                raise ValueError(f"Неизвестный interval: {interval}. Добавьте дельту в INTERVAL_DELTAS.")
+                raise ValueError(f"Неизвестный interval: {interval}")
             next_start = last_open_dt + delta
 
-            # Если достигли end_time или получили меньше 1000 (конец данных)
             if end_time and next_start >= end_time:
                 break
             if len(klines) < 1000:
                 break
-
             current_start = next_start
 
         return all_klines
@@ -119,14 +91,31 @@ class HistoryBinanceParser(HistoryMarketParser):
             rows.append([t, float(k[1]), float(k[2]), float(k[3]), float(k[4]), float(k[5])])
         return rows
 
-    def get_df(self,
-               slash_symbol: str,
-               interval: str = "1m",  # игнорируется — используется self.interval_str
-               start_time: Optional[datetime] = None,
-               end_time: Optional[datetime] = None,
-               limit: Optional[int] = None) -> pd.DataFrame:
+    def get_df(
+        self,
+        slash_symbol: str,
+        interval: str = "1m",
+        start_time: Optional[datetime] = None,
+        end_time: Optional[datetime] = None,
+        limit: Optional[int] = None
+    ) -> pd.DataFrame:
+
         symbol = self.normalize_slash_symbol(slash_symbol)
 
+        # Определяем путь к файлу
+        if limit:
+            filename = f'files/history_data/last{limit}_candles_binance_{symbol}_{self.interval_str}.csv'
+        else:
+            start_str = start_time.strftime("%Y%m%d") if start_time else "begin"
+            end_str = end_time.strftime("%Y%m%d") if end_time else "end"
+            filename = f'files/history_data/binance_{symbol}_{self.interval_str}_{start_str}_to_{end_str}.csv'
+
+        # Если mode=loading и файл существует — читаем его
+        if self.mode == "loading" and os.path.exists(filename):
+            print(f"[HistoryBinanceParser] Загружен существующий CSV: {filename}")
+            return self.load_csv(filename)
+
+        # Иначе — generating: скачиваем с API и сохраняем
         klines = self.fetch_klines(
             symbol=symbol,
             interval=self.interval_str,
@@ -138,14 +127,7 @@ class HistoryBinanceParser(HistoryMarketParser):
         rows = self._klines_to_rows(klines)
         df = pd.DataFrame(rows, columns=self.headers)
 
-        # Адаптированное имя файла
-        if limit:
-            filename = f'files/history_data/last{limit}_candles_binance_{symbol}_{self.interval_str}.csv'
-        else:
-            start_str = start_time.strftime("%Y%m%d") if start_time else "begin"
-            end_str = end_time.strftime("%Y%m%d") if end_time else "end"
-            filename = f'files/history_data/binance_{symbol}_{self.interval_str}_{start_str}_to_{end_str}.csv'
-        print(f"[HistoryBinanceParser] csv saved: {self.slash_symbol}")
+        print(f"[HistoryBinanceParser] Данные получены с API и сохранены: {filename}")
         self.save_csv(filename, self.headers, rows)
 
         return df
