@@ -10,7 +10,7 @@ from scenarios.strategies.instances.choch_strategy import CHoCHStrategy
 
 
 class CHoCHMaster(MarketMaster):
-    def __init__(self, symbol1, symbol2, balance_usdt, mode):
+    def __init__(self, symbol1, symbol2, balance_usdt, mode='generating'):
         super().__init__()
 
         # PROCESSES (PARSERS)
