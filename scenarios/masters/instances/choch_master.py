@@ -57,8 +57,10 @@ class CHoCHMaster(MarketMaster):
         self.market_processes = [
             history_market_parser_1m,
             history_market_parser_15m,
+            history_market_parser_30m,
             history_market_parser_60m,
             kama_indicator_60m,
+            kama_indicator_30m,
             kama_indicator_15m,
             kama_indicator_1m,
             choch_indicator,
