@@ -11,6 +11,7 @@ class CHoCHStrategy(Strategy):
         history_market_parser_1m: HistoryMarketParser,
         history_market_parser_15m: HistoryMarketParser,
         kama_indicator_60m: KamaIndicator,
+        kama_indicator_30m: KamaIndicator,
         kama_indicator_15m: KamaIndicator,
         kama_indicator_1m: KamaIndicator,
         choch_indicator: CHoCHIndicator,
@@ -20,6 +21,7 @@ class CHoCHStrategy(Strategy):
         self.history_market_parser_1m=history_market_parser_1m
         self.history_market_parser_15m=history_market_parser_15m
         self.kama_indicator_60m=kama_indicator_60m
+        self.kama_indicator_30m=kama_indicator_30m
         self.kama_indicator_15m=kama_indicator_15m
         self.kama_indicator_1m=kama_indicator_1m
         self.choch_indicator=choch_indicator
@@ -31,6 +33,8 @@ class CHoCHStrategy(Strategy):
            self.kama_indicator_15m.trend == "BULLISH" and \
            self.kama_indicator_15m.trend2 == "BULLISH" and \
            self.kama_indicator_15m.trend3 == "BULLISH" and \
+           self.kama_indicator_30m.trend == "BULLISH" and \
+           self.kama_indicator_30m.trend2 == "BULLISH" and \
            self.kama_indicator_60m.trend == "BULLISH" and \
            self.kama_indicator_60m.trend2 == "BULLISH":
            self.is_accepted_by_strategy = True
