@@ -13,14 +13,14 @@ balance_usdt = BalanceUSDT(7712)
 
 #MARKET PROCESSES
 MARKET_PROCESSES = [
-    CHoCHMaster('BTC', 'USDT', balance_usdt),    # Основная крипта
-    CHoCHMaster('ETH', 'USDT', balance_usdt),    # Крупная альта, но коррелирует с BTC ~0.8–0.9
-    CHoCHMaster('SOL', 'USDT', balance_usdt),    # Solana — отдельная экосистема, корреляция ниже
-    CHoCHMaster('XRP', 'USDT', balance_usdt),    # Ripple — часто движется независимо (регуляторные новости)
-    CHoCHMaster('ADA', 'USDT', balance_usdt),    # Cardano — свой цикл
-    CHoCHMaster('AVAX', 'USDT', balance_usdt),   # Avalanche — L1 с собственной динамикой
-    CHoCHMaster('DOT', 'USDT', balance_usdt),    # Polkadot — парачейн-экосистема
-    CHoCHMaster('LINK', 'USDT', balance_usdt),   # Chainlink — оракулы, реагирует на DeFi-активность
-    CHoCHMaster('MATIC', 'USDT', balance_usdt),  # Polygon — L2, корреляция с ETH, но слабее
-    CHoCHMaster('NEAR', 'USDT', balance_usdt),   # NEAR Protocol — AI-направление + свой хайп
+    CHoCHMaster('BTC', 'USDT', balance_usdt, 'loading'),    # Основная крипта
+    CHoCHMaster('ETH', 'USDT', balance_usdt, 'loading'),    # Крупная альта, но коррелирует с BTC ~0.8–0.9
+    CHoCHMaster('SOL', 'USDT', balance_usdt, 'loading'),    # Solana — отдельная экосистема, корреляция ниже
+    CHoCHMaster('XRP', 'USDT', balance_usdt, 'loading'),    # Ripple — часто движется независимо (регуляторные новости)
+    CHoCHMaster('ADA', 'USDT', balance_usdt, 'loading'),    # Cardano — свой цикл
+    CHoCHMaster('AVAX', 'USDT', balance_usdt, 'loading'),   # Avalanche — L1 с собственной динамикой
+    CHoCHMaster('DOT', 'USDT', balance_usdt, 'loading'),    # Polkadot — парачейн-экосистема
+    CHoCHMaster('LINK', 'USDT', balance_usdt, 'loading'),   # Chainlink — оракулы, реагирует на DeFi-активность
+    CHoCHMaster('MATIC', 'USDT', balance_usdt, 'loading'),  # Polygon — L2, корреляция с ETH, но слабее
+    CHoCHMaster('NEAR', 'USDT', balance_usdt, 'loading'),   # NEAR Protocol — AI-направление + свой хайп
 ]
