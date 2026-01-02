@@ -13,9 +13,9 @@ balance_usdt = BalanceUSDT(7712)
 
 #MARKET PROCESSES
 MARKET_PROCESSES = [
-    CHoCHMaster('BTC', 'USDT', balance_usdt),
-    CHoCHMaster('SOL', 'USDT', balance_usdt),    # Solana — отдельная экосистема, корреляция ниже
-    CHoCHMaster('ADA', 'USDT', balance_usdt),    # Cardano — свой цикл
-    CHoCHMaster('AVAX', 'USDT', balance_usdt),   # Avalanche — L1 с собственной динамикой
-    CHoCHMaster('NEAR', 'USDT', balance_usdt),   # NEAR Protocol — AI-направление + свой хайп
+    CHoCHMaster('BTC', 'USDT', balance_usdt, 'loading'),
+    CHoCHMaster('SOL', 'USDT', balance_usdt, 'loading'),    # Solana — отдельная экосистема, корреляция ниже
+    CHoCHMaster('ADA', 'USDT', balance_usdt, 'loading'),    # Cardano — свой цикл
+    CHoCHMaster('AVAX', 'USDT', balance_usdt, 'loading'),   # Avalanche — L1 с собственной динамикой
+    CHoCHMaster('NEAR', 'USDT', balance_usdt, 'loading'),   # NEAR Protocol — AI-направление + свой хайп
 ]

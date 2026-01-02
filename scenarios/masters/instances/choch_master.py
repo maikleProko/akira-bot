@@ -10,12 +10,12 @@ from scenarios.strategies.instances.choch_strategy import CHoCHStrategy
 
 
 class CHoCHMaster(MarketMaster):
-    def __init__(self, symbol1, symbol2, balance_usdt):
+    def __init__(self, symbol1, symbol2, balance_usdt, mode):
         super().__init__()
 
         # PROCESSES (PARSERS)
-        history_market_parser_1m = HistoryBinanceParser(symbol1, symbol2, 1, 1000)
-        history_market_parser_15m = HistoryBinanceParser(symbol1, symbol2, 15, 1000)
+        history_market_parser_1m = HistoryBinanceParser(symbol1, symbol2, 1, 1000, mode)
+        history_market_parser_15m = HistoryBinanceParser(symbol1, symbol2, 15, 1000, mode)
         nwe_bounds_indicator = NweBoundsIndicator(history_market_parser_1m)
         atr_bounds_indicator = AtrBoundsIndicator(history_market_parser_1m)
         kama_indicator = KamaIndicator(history_market_parser_15m, 7, 2, 30)
