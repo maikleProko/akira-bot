@@ -18,8 +18,8 @@ class HistoryBinanceParser(HistoryMarketParser):
         "5m": timedelta(minutes=5),
         "15m": timedelta(minutes=15),
         "30m": timedelta(minutes=30),
-        "1h": timedelta(hours=1),
-        "2h": timedelta(hours=2),
+        "1h": timedelta(minutes=60),
+        "2h": timedelta(minutes=120),
         "4h": timedelta(hours=4),
         "6h": timedelta(hours=6),
         "8h": timedelta(hours=8),
@@ -44,12 +44,16 @@ class HistoryBinanceParser(HistoryMarketParser):
         # (тот же код, что был раньше — без изменений)
         all_klines: List[List] = []
 
+        if interval == "60m":
+            interval = "1h"
+
         if limit is not None:
             params = {"symbol": symbol, "interval": interval, "limit": limit}
             if start_time:
                 params["startTime"] = self._to_ms(start_time)
             if end_time:
                 params["endTime"] = self._to_ms(end_time)
+            print(interval)
             resp = requests.get(self.API_URL, params=params, timeout=10)
             resp.raise_for_status()
             return resp.json()
