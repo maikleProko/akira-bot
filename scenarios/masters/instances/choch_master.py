@@ -27,7 +27,7 @@ class CHoCHMaster(MarketMaster):
         kama_indicator_1m = KamaIndicator(history_market_parser_15m, 7, 2, 30)
         choch_indicator = CHoCHIndicator(history_market_parser_15m)
         bos_indicator = BosIndicator(history_market_parser_15m)
-        orderblock_indicator = OrderblockIndicator(history_market_parser_5m)
+        orderblock_indicator = OrderblockIndicator(history_market_parser_1m)
 
         # PROCESSES (STRATEGIES)
         strategy = CHoCHStrategy(

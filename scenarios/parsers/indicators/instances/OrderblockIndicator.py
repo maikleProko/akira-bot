@@ -210,4 +210,5 @@ class OrderblockIndicator(Indicator):
                 bear_orderblocks.append(zone)
                 if not self.last_bear_orderblock:
                     self.last_bear_orderblock = zone
+        print(f'bull: {self.last_bull_orderblock}, bear: {self.last_bear_orderblock}')
         return bull_orderblocks, bear_orderblocks
