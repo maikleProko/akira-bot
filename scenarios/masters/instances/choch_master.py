@@ -2,6 +2,7 @@ from scenarios.market.buyers.buyer_tpsl import BuyerTPSL
 from scenarios.market.regulators.regulator_nweatr import RegulatorNWEATR
 from scenarios.masters.abstracts.market_master import MarketMaster
 from scenarios.parsers.history_market_parser.instances.history_binance_parser import HistoryBinanceParser
+from scenarios.parsers.indicators.instances.OrderblockIndicator import OrderblockIndicator
 from scenarios.parsers.indicators.instances.atr_bounds_indicator import AtrBoundsIndicator
 from scenarios.parsers.indicators.instances.bos_indicator import BosIndicator
 from scenarios.parsers.indicators.instances.choch_indicator import CHoCHIndicator
@@ -16,6 +17,7 @@ class CHoCHMaster(MarketMaster):
 
         # PROCESSES (PARSERS)
         history_market_parser_1m = HistoryBinanceParser(symbol1, symbol2, 1, 1000, mode)
+        history_market_parser_5m = HistoryBinanceParser(symbol1, symbol2, 5, 1000, mode)
         history_market_parser_15m = HistoryBinanceParser(symbol1, symbol2, 15, 1000, mode)
         history_market_parser_60m = HistoryBinanceParser(symbol1, symbol2, 60, 1000, mode)
         nwe_bounds_indicator = NweBoundsIndicator(history_market_parser_1m)
@@ -25,6 +27,7 @@ class CHoCHMaster(MarketMaster):
         kama_indicator_1m = KamaIndicator(history_market_parser_15m, 7, 2, 30)
         choch_indicator = CHoCHIndicator(history_market_parser_15m)
         bos_indicator = BosIndicator(history_market_parser_15m)
+        orderblock_indicator = OrderblockIndicator(history_market_parser_5m)
 
         # PROCESSES (STRATEGIES)
         strategy = CHoCHStrategy(
@@ -35,7 +38,8 @@ class CHoCHMaster(MarketMaster):
             kama_indicator_1m = kama_indicator_1m,
             choch_indicator=choch_indicator,
             bos_indicator=bos_indicator,
-            nwe_bounds_indicator=nwe_bounds_indicator
+            nwe_bounds_indicator=nwe_bounds_indicator,
+            orderblock_indicator=orderblock_indicator
         )
 
         # PROCESSES (MARKET)
@@ -56,6 +60,7 @@ class CHoCHMaster(MarketMaster):
 
         self.market_processes = [
             history_market_parser_1m,
+            history_market_parser_5m,
             history_market_parser_15m,
             history_market_parser_60m,
             kama_indicator_60m,
@@ -63,6 +68,7 @@ class CHoCHMaster(MarketMaster):
             kama_indicator_1m,
             choch_indicator,
             bos_indicator,
+            orderblock_indicator,
             atr_bounds_indicator,
             nwe_bounds_indicator,
             strategy,

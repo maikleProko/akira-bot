@@ -19,7 +19,7 @@ class RegulatorNWEATR(RegulatorTPSL):
         atr_bounds_indicator: AtrBoundsIndicator,
         strategy: Strategy,
         risk_usdt: float = 30.0,           # ровно столько теряем чистыми на SL
-        min_profit_usdt: float = 45.0,      # минимум столько зарабатываем чистыми на TP
+        min_profit_usdt: float = 50.0,      # минимум столько зарабатываем чистыми на TP
         fee_rate: float = 0.001,            # комиссия за сторону (0.1%)
         min_amount_step: float = 0.00001
     ):
@@ -41,6 +41,7 @@ class RegulatorNWEATR(RegulatorTPSL):
         atr_lower = self.atr_bounds_indicator.bounds.get('lower', entry_price)
         nwe_lower = self.nwe_bounds_indicator.bounds.get('lower', entry_price)
         sl_price = min(atr_lower, nwe_lower)
+
 
         if sl_price >= entry_price or self.nwe_bounds_indicator.candle_count < 500 or sl_price <= 0:
             return

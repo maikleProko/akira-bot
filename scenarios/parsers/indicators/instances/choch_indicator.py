@@ -167,6 +167,9 @@ class CHoCHIndicator(Indicator):
         is_choch_series = pd.Series(is_choch_list, index=df.index, dtype=bool)
         cross_price_series = pd.Series(cross_price_list, index=df.index)
         bias_series = pd.Series(trend_bias_list, index=df.index)
+        #print(str(list(is_choch_series)))
+        #print(str(list(cross_price_series)))
+        #print(str(list(bias_series)))
 
         return is_choch_series, cross_price_series, bias_series
 

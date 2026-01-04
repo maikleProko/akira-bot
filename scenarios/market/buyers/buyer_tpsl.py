@@ -74,6 +74,7 @@ class BuyerTPSL(MarketProcess):
         fee_cost = cost * self.fee
 
         if self.balance_usdt.amount < (cost):
+            self.regulator_tpsl.is_accepted_by_regulator = False
             return
 
         self.balance_usdt.amount -= (cost)
