@@ -4,9 +4,9 @@ from scenarios.masters.instances.choch_master import CHoCHMaster
 
 #FOR HISTORICAL TRADING
 realtime = False
-start_time_string='2025/01/01 00:00'
-end_time_string='2026/01/04 00:00'
-is_printed_ticks = False
+start_time_string='2025/06/01 00:00'
+end_time_string='2026/01/01 10:00'
+is_printed_ticks = True
 balance_usdt = BalanceUSDT(7712)
 
 

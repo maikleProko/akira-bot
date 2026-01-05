@@ -12,6 +12,7 @@ class CHoCHStrategy(Strategy):
             self,
             history_market_parser_1m: HistoryMarketParser,
             history_market_parser_15m: HistoryMarketParser,
+            kama_indicator_240m: KamaIndicator,
             kama_indicator_60m: KamaIndicator,
             kama_indicator_15m: KamaIndicator,
             kama_indicator_1m: KamaIndicator,
@@ -23,6 +24,7 @@ class CHoCHStrategy(Strategy):
         super().__init__()
         self.history_market_parser_1m = history_market_parser_1m
         self.history_market_parser_15m = history_market_parser_15m
+        self.kama_indicator_240m = kama_indicator_240m
         self.kama_indicator_60m = kama_indicator_60m
         self.kama_indicator_15m = kama_indicator_15m
         self.kama_indicator_1m = kama_indicator_1m
@@ -55,7 +57,10 @@ class CHoCHStrategy(Strategy):
                 self.kama_indicator_15m.trend2 == "BULLISH" and \
                 self.kama_indicator_15m.trend3 == "BULLISH" and \
                 self.kama_indicator_60m.trend == "BULLISH" and \
-                self.kama_indicator_60m.trend2 == "BULLISH":
+                self.kama_indicator_60m.trend2 == "BULLISH" and \
+                self.kama_indicator_240m.trend == "BULLISH" and \
+                self.kama_indicator_240m.trend2 == "BULLISH" and \
+                self.kama_indicator_240m.trend3 == "BULLISH":
             self.is_accepted_by_strategy = True
         else:
             self.is_accepted_by_strategy = False

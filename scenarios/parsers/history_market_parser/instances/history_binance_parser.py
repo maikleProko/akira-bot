@@ -47,6 +47,9 @@ class HistoryBinanceParser(HistoryMarketParser):
         if interval == "60m":
             interval = "1h"
 
+        if interval == "240m":
+            interval = "4h"
+
         if limit is not None:
             params = {"symbol": symbol, "interval": interval, "limit": limit}
             if start_time:
