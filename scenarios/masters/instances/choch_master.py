@@ -34,6 +34,7 @@ class CHoCHMaster(MarketMaster):
         strategy = CHoCHStrategy(
             history_market_parser_1m=history_market_parser_1m,
             history_market_parser_15m=history_market_parser_15m,
+            kama_indicator_240m=kama_indicator_240m,
             kama_indicator_60m=kama_indicator_60m,
             kama_indicator_15m=kama_indicator_15m,
             kama_indicator_1m = kama_indicator_1m,
