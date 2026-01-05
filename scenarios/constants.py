@@ -14,4 +14,8 @@ balance_usdt = BalanceUSDT(7712)
 #MARKET PROCESSES
 MARKET_PROCESSES = [
     CHoCHMaster('BTC', 'USDT', balance_usdt),    # Основная крипта
+    CHoCHMaster('SOL', 'USDT', balance_usdt),  # Solana — отдельная экосистема, корреляция ниже
+    CHoCHMaster('ADA', 'USDT', balance_usdt),  # Cardano — свой цикл
+    CHoCHMaster('AVAX', 'USDT', balance_usdt),  # Avalanche — L1 с собственной динамикой
+    CHoCHMaster('NEAR', 'USDT', balance_usdt),
 ]
