@@ -1,5 +1,5 @@
 from scenarios.parsers.history_market_parser.abstracts.history_market_parser import HistoryMarketParser
-from scenarios.parsers.indicators.instances.OrderblockIndicator import OrderblockIndicator
+from scenarios.parsers.indicators.instances.orderblock_indicator import OrderblockIndicator
 from scenarios.parsers.indicators.instances.bos_indicator import BosIndicator
 from scenarios.parsers.indicators.instances.choch_indicator import CHoCHIndicator
 from scenarios.parsers.indicators.instances.kama_indicator import KamaIndicator

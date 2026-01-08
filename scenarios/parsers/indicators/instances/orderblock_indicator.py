@@ -26,6 +26,9 @@ class OrderblockIndicator(Indicator):
         self.bull_orderblocks = []  # list of {'y1': float, 'y2': float}
         self.bear_orderblocks = []  # list of {'y1': float, 'y2': float}
 
+        self.last_bull_orderblock = None
+        self.last_bear_orderblock = None
+
     def run(self, start_time=None, current_time=None):
         """
         Вычисляет зоны на данных до current_time (historical) или на полном df (realtime).
@@ -210,5 +213,4 @@ class OrderblockIndicator(Indicator):
                 bear_orderblocks.append(zone)
                 if not self.last_bear_orderblock:
                     self.last_bear_orderblock = zone
-        print(f'bull: {self.last_bull_orderblock}, bear: {self.last_bear_orderblock}')
         return bull_orderblocks, bear_orderblocks

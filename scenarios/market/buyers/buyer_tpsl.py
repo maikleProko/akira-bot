@@ -84,7 +84,7 @@ class BuyerTPSL(MarketProcess):
         self.entry_price = price
         self.entry_time = timestamp
 
-        self._log(f"BUY OPEN @ {price:.2f} | amount: {amount_to_buy:.6f} {self.symbol1} | "
+        self._log(f"BUY OPEN @ {price:.2f} | amount: {amount_to_buy:.6f} {self.symbol1} | cost: {cost} | "
                   f"TP: {self.regulator_tpsl.take_profit:.2f} | SL: {self.regulator_tpsl.stop_loss:.2f}")
 
         self.trades.append({

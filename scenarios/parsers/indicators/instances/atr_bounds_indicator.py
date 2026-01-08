@@ -23,6 +23,11 @@ class AtrBoundsIndicator(Indicator):
             'lower': np.nan,
         }
 
+        self.bounds2 = {
+            'upper': np.nan,
+            'lower': np.nan,
+        }
+
         # Полные исторические серии (для исторического режима)
         self._historical_upper = None  # pd.Series
         self._historical_lower = None  # pd.Series
@@ -83,6 +88,7 @@ class AtrBoundsIndicator(Indicator):
         if (self._historical_upper is None or self._historical_upper.empty or
                 self._historical_lower is None or self._historical_lower.empty):
             self.bounds = {'upper': np.nan, 'lower': np.nan}
+            self.bounds2 = {'upper': np.nan, 'lower': np.nan}
             return
 
         time_col = pd.to_datetime(self.history_market_parser.history_df['time'])
@@ -90,13 +96,20 @@ class AtrBoundsIndicator(Indicator):
 
         if not mask.any():
             self.bounds = {'upper': np.nan, 'lower': np.nan}
+            self.bounds2 = {'upper': np.nan, 'lower': np.nan}
             return
 
         last_idx = time_col[mask].index[-1]
+        last_idx2 = time_col[mask].index[-2]
 
         self.bounds = {
             'upper': float(self._historical_upper.loc[last_idx]),
             'lower': float(self._historical_lower.loc[last_idx]),
+        }
+
+        self.bounds2 = {
+            'upper': float(self._historical_upper.loc[last_idx2]),
+            'lower': float(self._historical_lower.loc[last_idx2]),
         }
 
     def run_realtime(self):
@@ -118,3 +131,11 @@ class AtrBoundsIndicator(Indicator):
             }
         else:
             self.bounds = {'upper': np.nan, 'lower': np.nan}
+
+        if len(upper_np) > 1 and len(lower_np) > 1:
+            self.bounds2 = {
+                'upper': float(upper_np[-2]),
+                'lower': float(lower_np[-2]),
+            }
+        else:
+            self.bounds2 = {'upper': np.nan, 'lower': np.nan}

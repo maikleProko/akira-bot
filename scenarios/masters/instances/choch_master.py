@@ -2,7 +2,7 @@ from scenarios.market.buyers.buyer_tpsl import BuyerTPSL
 from scenarios.market.regulators.regulator_nweatr import RegulatorNWEATR
 from scenarios.masters.abstracts.market_master import MarketMaster
 from scenarios.parsers.history_market_parser.instances.history_binance_parser import HistoryBinanceParser
-from scenarios.parsers.indicators.instances.OrderblockIndicator import OrderblockIndicator
+from scenarios.parsers.indicators.instances.orderblock_indicator import OrderblockIndicator
 from scenarios.parsers.indicators.instances.atr_bounds_indicator import AtrBoundsIndicator
 from scenarios.parsers.indicators.instances.bos_indicator import BosIndicator
 from scenarios.parsers.indicators.instances.choch_indicator import CHoCHIndicator
