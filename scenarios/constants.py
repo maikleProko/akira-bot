@@ -18,8 +18,5 @@ MARKET_PROCESSES = [
     ObFlowMaster('BTC', 'USDT', balance_usdt),
     ObFlowMaster('ETH', 'USDT', balance_usdt),  # Крупная альта, но коррелирует с BTC ~0.8–0.9
     ObFlowMaster('SOL', 'USDT', balance_usdt),  # Solana — отдельная экосистема, корреляция ниже
-    ObFlowMaster('XRP', 'USDT', balance_usdt),  # Ripple — часто движется независимо (регуляторные новости)
-    ObFlowMaster('DOT', 'USDT', balance_usdt),  # Polkadot — парачейн-экосистема
-    ObFlowMaster('LINK', 'USDT', balance_usdt),  # Chainlink — оракулы, реагирует на DeFi-активность
 
 ]

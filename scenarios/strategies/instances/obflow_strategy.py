@@ -10,6 +10,7 @@ class ObFlowStrategy(Strategy):
             self,
             history_market_parser_1m: HistoryMarketParser,
             kama_indicator_240m: KamaIndicator,
+            kama_indicator_60m: KamaIndicator,
             orderblock_indicator: OrderblockIndicator,
             atr_bounds_indicator: AtrBoundsIndicator
     ):
@@ -18,6 +19,7 @@ class ObFlowStrategy(Strategy):
         self.orderblock_indicator = orderblock_indicator
         self.atr_bounds_indicator = atr_bounds_indicator
         self.kama_indicator_240m = kama_indicator_240m
+        self.kama_indicator_60m = kama_indicator_60m
         self.take_profit = None
 
     def is_under_atr_and_under_ob_collided(self):
@@ -31,8 +33,11 @@ class ObFlowStrategy(Strategy):
     def is_kama240_correct(self):
         return self.kama_indicator_240m.trend == "BULLISH" and self.kama_indicator_240m.trend2 == "BULLISH" and self.kama_indicator_240m.trend3 == "BULLISH"
 
+    def is_kama60_correct(self):
+        return self.kama_indicator_60m.trend == "BULLISH" and self.kama_indicator_60m.trend2 == "BULLISH" and self.kama_indicator_60m.trend3 == "BULLISH"
+
     def run_historical(self, start_time, current_time):
-        if self.is_both_obs_existed() and self.is_under_atr_and_under_ob_collided() and self.is_kama240_correct():
+        if self.is_both_obs_existed() and self.is_under_atr_and_under_ob_collided() and self.is_kama240_correct() and self.is_kama60_correct():
             self.take_profit = self.orderblock_indicator.last_bear_orderblock['y1']
             self.is_accepted_by_strategy = True
         else:
