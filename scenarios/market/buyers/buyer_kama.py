@@ -1,24 +1,30 @@
-# BuyerTPSL.py
+# BuyerKAMA.py
 from datetime import datetime
 import pandas as pd
 import os
 from scenarios.market.buyers.balance_usdt import BalanceUSDT
-from scenarios.market.regulators.regulator_tpsl import RegulatorTPSL
 from scenarios.parsers.history_market_parser.abstracts.history_market_parser import HistoryMarketParser
+from scenarios.parsers.indicators.instances.kama_indicator import KamaIndicator
 from utils.core.functions import MarketProcess
-class BuyerTPSL(MarketProcess):
+
+class BuyerKAMA(MarketProcess):
     def __init__(
             self,
             history_market_parser: HistoryMarketParser,
-            regulator_tpsl: RegulatorTPSL,
+            kama_indicator: KamaIndicator,
+            kama_indicator_other: KamaIndicator,
+            kama_indicator_other2: KamaIndicator,
             symbol1='BTC',
             symbol2='USDT',
             symbol1_amount: float = 0.0,
             balance_usdt: BalanceUSDT = None,
             fee: float = 0.001,
+            investment_usdt: float = 1000.0  # сколько USDT инвестировать в каждую покупку (без учета fee)
     ):
         self.history_market_parser = history_market_parser
-        self.regulator_tpsl = regulator_tpsl
+        self.kama_indicator = kama_indicator
+        self.kama_indicator_other = kama_indicator
+        self.kama_indicator_other2 = kama_indicator
         self.in_position = False
         self.entry_price = None
         self.entry_time = None
@@ -27,6 +33,8 @@ class BuyerTPSL(MarketProcess):
         self.symbol1_amount = symbol1_amount
         self.balance_usdt = balance_usdt
         self.fee = fee
+        self.investment_usdt = investment_usdt
+        self.amount_in_position = 0.0
         self.trades = []
         self.current_timestamp = ""
         log_date = datetime.now().strftime("%Y%m%d")
@@ -34,48 +42,64 @@ class BuyerTPSL(MarketProcess):
         os.makedirs(log_dir, exist_ok=True)
         self.log_file = os.path.join(log_dir, f"decisions_{log_date}.txt")
         self._log(f"\n=== НОВАЯ СЕССИЯ | {symbol1}/{symbol2} | Баланс: {balance_usdt.amount:.2f} USDT ===\n")
+
     def _log(self, message: str):
         entry = f"[{self.current_timestamp}] {message}\n"
         with open(self.log_file, "a", encoding="utf-8") as f:
             f.write(entry)
         print(entry.strip())
+
     def _fix_deal(self, reason):
         with open(f'files/decisions/deals.txt', "a", encoding="utf-8") as f:
             f.write("{")
             f.write(f"\"date\": \"{self.entry_time}\", \"result\": \"{reason}\"")
             f.write("},\n")
+
     def prepare(self, start_time: datetime = None, end_time: datetime = None):
         pass
+
     def run_realtime(self):
         self._tick(datetime.now())
+
     def run_historical(self, start_time: datetime, current_time: datetime):
         self._tick(current_time)
+
     def _tick(self, current_time: datetime):
         if self.history_market_parser.df is None or self.history_market_parser.df.empty:
             return
+
         last_row = self.history_market_parser.df.iloc[-1]
         current_price = last_row['close']
         self.current_timestamp = pd.to_datetime(last_row['time'])
+
+        # Обновляем индикатор KAMA для текущего времени
+        self.kama_indicator.run_historical(None, current_time)
+
         if not self.in_position:
-            if self.regulator_tpsl.is_accepted_by_regulator:
+            if self.kama_indicator.trend == "BULLISH" and self.kama_indicator.trend2 == "BULLISH" and self.kama_indicator.trend3 == "BULLISH" and self.kama_indicator_other.trend == "BULLISH" and self.kama_indicator_other2.trend == "BULLISH":
                 self._open_position(current_price, self.current_timestamp)
         else:
-            self._check_exit_conditions(last_row, current_price, self.current_timestamp)
+            if self.kama_indicator.trend == "BEARISH":
+                self._close_position(current_price, self.current_timestamp, "BEARISH")
+
     def _open_position(self, price: float, timestamp: datetime):
-        amount_to_buy = self.regulator_tpsl.symbol1_prepared_converted_amount
-        cost = amount_to_buy * price
+        cost = self.investment_usdt
+        amount_to_buy = cost / price
         fee_entry = cost * self.fee
         total_cost = cost + fee_entry
+
         if self.balance_usdt.amount < total_cost:
-            self.regulator_tpsl.is_accepted_by_regulator = False
             return
+
         self.balance_usdt.amount -= total_cost
         self.symbol1_amount += amount_to_buy
+        self.amount_in_position = amount_to_buy
         self.in_position = True
         self.entry_price = price
         self.entry_time = timestamp
-        self._log(f"BUY OPEN @ {price:.2f} | amount: {amount_to_buy:.6f} {self.symbol1} | cost: {total_cost:.2f} | "
-                  f"TP: {self.regulator_tpsl.take_profit:.2f} | SL: {self.regulator_tpsl.stop_loss:.2f}")
+
+        self._log(f"BUY OPEN @ {price:.2f} | amount: {amount_to_buy:.6f} {self.symbol1} | cost: {total_cost:.2f}")
+
         self.trades.append({
             "type": "BUY",
             "time": timestamp,
@@ -83,27 +107,20 @@ class BuyerTPSL(MarketProcess):
             "amount": amount_to_buy,
             "fee": fee_entry
         })
-    def _check_exit_conditions(self, last_row, current_price: float, timestamp: datetime):
-        tp = self.regulator_tpsl.take_profit
-        sl = self.regulator_tpsl.stop_loss
-        if last_row['low'] <= sl:
-            self._close_position(sl, timestamp, "SL")
-            return
-        if last_row['high'] >= tp:
-            self._close_position(tp, timestamp, "TP")
+
     def _close_position(self, price: float, timestamp: datetime, reason: str):
-        amount = self.regulator_tpsl.symbol1_prepared_converted_amount # ← лучше использовать эту переменную
-        self.regulator_tpsl.is_accepted_by_regulator = False
+        amount = self.amount_in_position
         proceeds_gross = amount * price
         fee_exit = proceeds_gross * self.fee
         proceeds_net = proceeds_gross - fee_exit
         self.balance_usdt.amount += proceeds_net
         self.symbol1_amount -= amount
-        # ────────────────────────────────────────────────
+        self.amount_in_position = 0.0
+
         # Самый честный и понятный способ посчитать net PnL
-        entry_cost = self.entry_price * amount + self.entry_price * amount * self.fee # сколько реально потратили USDT на вход включая fee
+        entry_cost = self.entry_price * amount + self.entry_price * amount * self.fee
         net_pnl = proceeds_net - entry_cost
-        # ────────────────────────────────────────────────
+
         self._log(f"CLOSE {reason} @ {price:.2f} | net PnL: {net_pnl:+.2f} USDT | "
                   f"balance: {self.balance_usdt.amount:.2f} USDT | {self.symbol1}: {self.symbol1_amount:.6f}")
         self._fix_deal(reason)
@@ -119,6 +136,7 @@ class BuyerTPSL(MarketProcess):
         self.in_position = False
         self.entry_price = None
         self.entry_time = None
+
     def finalize(self):
         if not self.in_position:
             return

@@ -47,6 +47,9 @@ class HistoryBinanceParser(HistoryMarketParser):
         if interval == "60m":
             interval = "1h"
 
+        if interval == "120m":
+            interval = "2h"
+
         if interval == "240m":
             interval = "4h"
 
@@ -56,7 +59,6 @@ class HistoryBinanceParser(HistoryMarketParser):
                 params["startTime"] = self._to_ms(start_time)
             if end_time:
                 params["endTime"] = self._to_ms(end_time)
-            print(interval)
             resp = requests.get(self.API_URL, params=params, timeout=10)
             resp.raise_for_status()
             return resp.json()
@@ -134,7 +136,7 @@ class HistoryBinanceParser(HistoryMarketParser):
         rows = self._klines_to_rows(klines)
         df = pd.DataFrame(rows, columns=self.headers)
 
-        print(f"[HistoryBinanceParser] Данные получены с API и сохранены: {filename}")
+        #print(f"[HistoryBinanceParser] Данные получены с API и сохранены: {filename}")
         self.save_csv(filename, self.headers, rows)
 
         return df

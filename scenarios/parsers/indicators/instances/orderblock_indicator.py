@@ -50,6 +50,9 @@ class OrderblockIndicator(Indicator):
             self.last_bear_orderblock = None
 
 
+    def run_realtime(self):
+        self.run()
+
 
     def _compute_zones(self, df: pd.DataFrame):
         df = df.reset_index(drop=True)

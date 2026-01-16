@@ -178,3 +178,5 @@ class KamaIndicator(Indicator):
             self.trend3 = str(trend_series.loc[indices[-3]])
         else:
             self.trend3 = "BEARISH"
+
+        self.kama = kama_series
