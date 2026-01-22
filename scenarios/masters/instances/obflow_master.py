@@ -14,18 +14,12 @@ class ObFlowMaster(MarketMaster):
 
         # PROCESSES (PARSERS)
         history_market_parser_1m = HistoryBinanceParser(symbol1, symbol2, 1, 1000, mode)
-        history_market_parser_60m = HistoryBinanceParser(symbol1, symbol2, 60, 1000, mode)
-        history_market_parser_240m = HistoryBinanceParser(symbol1, symbol2, 240, 1000, mode)
-        kama_indicator_60m = KamaIndicator(history_market_parser_60m, 7, 2, 30)
-        kama_indicator_240m = KamaIndicator(history_market_parser_240m, 7, 2, 30)
         atr_bounds_indicator = AtrBoundsIndicator(history_market_parser_1m)
         orderblock_indicator = OrderblockIndicator(history_market_parser_1m)
 
         # PROCESSES (STRATEGIES)
         strategy = ObFlowStrategy(
             history_market_parser_1m=history_market_parser_1m,
-            kama_indicator_240m=kama_indicator_240m,
-            kama_indicator_60m=kama_indicator_60m,
             orderblock_indicator=orderblock_indicator,
             atr_bounds_indicator=atr_bounds_indicator
         )
@@ -35,6 +29,7 @@ class ObFlowMaster(MarketMaster):
             history_market_parser=history_market_parser_1m,
             take_profit_indicator=strategy,
             strategy=strategy,
+            fee_rate=0
         )
 
         buyer = BuyerTPSL(
@@ -42,16 +37,13 @@ class ObFlowMaster(MarketMaster):
             symbol2=symbol2,
             history_market_parser=history_market_parser_1m,
             regulator_tpsl=regulator,
-            balance_usdt=balance_usdt
+            balance_usdt=balance_usdt,
+            fee=0
         )
 
         self.market_processes = [
             history_market_parser_1m,
-            history_market_parser_60m,
-            history_market_parser_240m,
             orderblock_indicator,
-            kama_indicator_60m,
-            kama_indicator_240m,
             atr_bounds_indicator,
             strategy,
             regulator,

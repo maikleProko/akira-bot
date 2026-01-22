@@ -32,6 +32,9 @@ class MarketProcess:
     def prepare(self, start_time=None, end_time=None):
         pass
 
+    def prepocess_realtime(self):
+        pass
+
     def run_historical(self, start_time, current_time):
         pass
 

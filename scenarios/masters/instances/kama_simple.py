@@ -28,6 +28,7 @@ class KamaSimple(MarketMaster):
             kama_indicator=kama_indicator_60m,
             kama_indicator_other=kama_indicator_60m_SOL,
             kama_indicator_other2=kama_indicator_60m_ETH,
+            fee=0
         )
 
         self.market_processes = [

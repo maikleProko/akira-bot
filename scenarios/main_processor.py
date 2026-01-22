@@ -35,6 +35,7 @@ class RealtimeProcessor(MarketProcessor):
         """Подготовка всех рыночных процессов"""
         for market_process in MARKET_PROCESSES:
             market_process.prepare()
+            market_process.prepocess_realtime()
 
     def _execute_market_processes(self):
         """Выполнение рыночных процессов в реальном времени"""
