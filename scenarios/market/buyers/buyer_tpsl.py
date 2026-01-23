@@ -1,6 +1,9 @@
 from datetime import datetime
 import pandas as pd
 import os
+
+from triton.language import condition
+
 from scenarios.market.buyers.balance_usdt import BalanceUSDT
 from scenarios.market.regulators.regulator_tpsl import RegulatorTPSL
 from scenarios.parsers.history_market_parser.abstracts.history_market_parser import HistoryMarketParser
@@ -17,6 +20,7 @@ class BuyerTPSL(MarketProcess):
             symbol1_amount: float = 0.0,
             balance_usdt: BalanceUSDT = None,
             fee: float = 0.001,
+            is_take_profit_for_close = False
     ):
         self.history_market_parser = history_market_parser
         self.regulator_tpsl = regulator_tpsl
@@ -33,6 +37,7 @@ class BuyerTPSL(MarketProcess):
         self.saved_timestamp = ""
         self.is_realtime_triggered = 0
         self.realtime = False
+        self.is_take_profit_for_close = is_take_profit_for_close
         log_date = datetime.now().strftime("%Y%m%d")
         log_dir = "files/decisions"
         os.makedirs(log_dir, exist_ok=True)
@@ -69,7 +74,6 @@ class BuyerTPSL(MarketProcess):
         last_row = self.history_market_parser.df.iloc[-1]
         current_price = last_row['close']
         self.current_timestamp = pd.to_datetime(last_row['time'])
-        print(self.current_timestamp)
         if not self.in_position:
             if self.regulator_tpsl.is_accepted_by_regulator:
                 self._signal_open_position(current_price, self.current_timestamp)
@@ -110,7 +114,15 @@ class BuyerTPSL(MarketProcess):
         if last_row['low'] <= sl:
             self._signal_close_position(sl, timestamp, "SL")
             return
-        if current_price >= tp:
+
+        if self.is_take_profit_for_close:
+            condition = (current_price >= tp)
+            bought_price = current_price
+        else:
+            condition = (last_row['high'] >= tp)
+            bought_price = tp
+
+        if condition:
             if self.realtime:
                 if self.is_realtime_triggered == 1:
                     self.saved_timestamp = self.current_timestamp
@@ -121,9 +133,9 @@ class BuyerTPSL(MarketProcess):
                     self.is_realtime_triggered = 3
 
                 if self.is_realtime_triggered > 2:
-                    self._signal_close_position(current_price, timestamp, "TP")
+                    self._signal_close_position(bought_price, timestamp, "TP")
             else:
-                self._signal_close_position(current_price, timestamp, "TP")
+                self._signal_close_position(bought_price, timestamp, "TP")
 
     def _signal_close_position(self, price: float, timestamp: datetime, reason: str):
         amount = self.symbol1_amount  # Use current holding

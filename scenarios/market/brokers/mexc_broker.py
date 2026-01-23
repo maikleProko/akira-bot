@@ -2,13 +2,15 @@
 # MEXCBroker.py
 import ccxt
 from datetime import datetime
+
+from scenarios.market.buyers.buyer_tpsl import BuyerTPSL
 from utils.core.functions import MarketProcess
 
 
 class MEXCBroker(MarketProcess):
     def __init__(
             self,
-            buyer: 'BuyerTPSL',
+            buyer: BuyerTPSL,
             api_key: str,
             api_secret: str,
             test_mode: bool = False
