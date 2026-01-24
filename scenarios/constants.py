@@ -13,7 +13,5 @@ balance_usdt = BalanceUSDT(57)
 
 #MARKET PROCESSES
 MARKET_PROCESSES = [
-    CHoCHNoFeeMaster('BTC', 'USDT', balance_usdt),
-    CHoCHNoFeeMaster('ETH', 'USDT', balance_usdt),
-    CHoCHNoFeeMaster('SOL', 'USDT', balance_usdt),
+    CHoCHNoFeeMaster('BTC', 'USDC', balance_usdt)
 ]

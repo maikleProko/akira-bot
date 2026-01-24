@@ -35,6 +35,7 @@ class RegulatorNWEATR(RegulatorTPSL):
         if self.history_market_parser.df is None or self.history_market_parser.df.empty:
             return
 
+
         entry_price = self.history_market_parser.df['close'].iloc[-1]
 
         # SL — самая нижняя граница из индикаторов

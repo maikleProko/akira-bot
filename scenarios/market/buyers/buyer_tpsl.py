@@ -2,8 +2,6 @@ from datetime import datetime
 import pandas as pd
 import os
 
-from triton.language import condition
-
 from scenarios.market.buyers.balance_usdt import BalanceUSDT
 from scenarios.market.regulators.regulator_tpsl import RegulatorTPSL
 from scenarios.parsers.history_market_parser.abstracts.history_market_parser import HistoryMarketParser
@@ -217,16 +215,3 @@ class BuyerTPSL(MarketProcess):
     def sync_balances(self, usdt_amount: float, symbol1_amount: float):
         self.balance_usdt.amount = usdt_amount
         self.symbol1_amount = symbol1_amount
-        # Update in_position based on real holdings
-        if self.symbol1_amount > 0.000001:
-            if not self.in_position:
-                self.in_position = True
-                self._log("SYNC: Detected open position on exchange.")
-        else:
-            if self.in_position:
-                self.in_position = False
-                self.entry_price = None
-                self.entry_time = None
-                self.is_realtime_triggered = 0
-                self._log("SYNC: Detected closed position on exchange.")
-

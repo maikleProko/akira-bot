@@ -30,16 +30,11 @@ class CHoCHNoFeeStrategy(Strategy):
             self.is_accepted_by_strategy = False
 
     def run_realtime(self):
-        print('---')
-        print(self.choch_indicator.is_now_CHoCH)
-        print(self.history_market_parser_1m.df['close'].iloc[-1])
-        print(self.kama_indicator.trend)
         if (
                 self.choch_indicator.is_now_CHoCH and self.choch_indicator.choch_cross_price <=
                 self.history_market_parser_1m.df['close'].iloc[-1]
         ) and \
                 self.kama_indicator.trend == "BULLISH":
-            print('accepted')
             self.is_accepted_by_strategy = True
         else:
             self.is_accepted_by_strategy = False

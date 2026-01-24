@@ -41,11 +41,7 @@ class MEXCBroker(MarketProcess):
         except Exception as e:
             self._log(f"MEXCBroker: Ошибка соединения с MEXC: {str(e)}")
 
-    def run(self, start_time: datetime = None, current_time: datetime = None):
-        if not self.active:
-            return
-        if start_time is not None or current_time is not None:
-            return
+    def run_realtime(self):
         self._tick()
 
     def _tick(self):
@@ -80,7 +76,7 @@ class MEXCBroker(MarketProcess):
         if not current_in_position:
             try:
                 self.exchange.cancel_all_orders(self.symbol)
-                self._log("MEXCBroker: All orders cancelled.")
+                #self._log("MEXCBroker: All orders cancelled.")
             except Exception as e:
                 self._log(f"MEXCBroker: Cancel error: {str(e)}")
 
@@ -95,9 +91,9 @@ class MEXCBroker(MarketProcess):
             filled_order = self.exchange.fetch_order(order['id'], self.symbol)
             actual_amount = filled_order['filled']
             actual_price = filled_order['average']
-            actual_fee = filled_order.get('fee', {}).get('cost', 0.0)
+            actual_fee = 0
             timestamp = datetime.fromtimestamp(filled_order['timestamp'] / 1000)
-            self.buyer.update_actual_open(actual_price, actual_amount, actual_fee, timestamp)
+            #self.buyer.update_actual_open(actual_price, actual_amount, actual_fee, timestamp)
             self._log(
                 f"MEXCBroker: BUY executed @ {actual_price:.2f} | amount: {actual_amount:.6f} | fee: {actual_fee:.2f}")
         except Exception as e:
@@ -113,13 +109,13 @@ class MEXCBroker(MarketProcess):
             filled_order = self.exchange.fetch_order(order['id'], self.symbol)
             actual_amount = filled_order['filled']
             actual_price = filled_order['average']
-            actual_fee = filled_order.get('fee', {}).get('cost', 0.0)
+            actual_fee = 0
             timestamp = datetime.fromtimestamp(filled_order['timestamp'] / 1000)
             # Determine reason based on price
             last_price = self.buyer.history_market_parser.df.iloc[-1][
                 'close'] if self.buyer.history_market_parser.df is not None else actual_price
             reason = "TP" if last_price >= self.buyer.regulator_tpsl.take_profit else "SL" if last_price <= self.buyer.regulator_tpsl.stop_loss else "UNKNOWN"
-            self.buyer.update_actual_close(actual_price, actual_amount, actual_fee, reason, timestamp)
+            #self.buyer.update_actual_close(actual_price, actual_amount, actual_fee, reason, timestamp)
             self._log(
                 f"MEXCBroker: SELL executed @ {actual_price:.2f} | amount: {actual_amount:.6f} | fee: {actual_fee:.2f}")
         except Exception as e:

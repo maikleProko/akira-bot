@@ -7,6 +7,7 @@ from scenarios.parsers.indicators.instances.atr_bounds_indicator import AtrBound
 from scenarios.parsers.indicators.instances.choch_indicator import CHoCHIndicator
 from scenarios.parsers.indicators.instances.kama_indicator import KamaIndicator
 from scenarios.parsers.indicators.instances.nwe_bounds_indicator import NweBoundsIndicator
+from scenarios.strategies.abstracts.strategy import Strategy
 from scenarios.strategies.instances.choch_nofee_strategy import CHoCHNoFeeStrategy
 import mexc_api
 
@@ -39,8 +40,8 @@ class CHoCHNoFeeMaster(MarketMaster):
             atr_bounds_indicator=atr_bounds_indicator,
             strategy=strategy,
             fee_rate=0,
-            risk_usdt=0.21,
-            min_profit_usdt=0.35
+            risk_usdt=0.12,
+            min_profit_usdt=0.2
         )
 
         buyer = BuyerTPSL(

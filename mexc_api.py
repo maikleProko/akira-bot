@@ -1,0 +1,2 @@
+API_KEY='mx0vgldcABP1503ltc'
+API_SECRET='fccd9b7fa001488a974ad773a41df1b6'

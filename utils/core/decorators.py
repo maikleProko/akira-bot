@@ -51,7 +51,6 @@ def fast_periodic():
             try:
                 while True:
                     try:
-                        print(f' ')
                         #print(f'[run] TICK RUN AT {datetime.now()}')
                         func(*args, **kwargs)
                     except Exception as e:
