@@ -1,3 +1,4 @@
+
 # MEXCBroker.py
 import ccxt
 from datetime import datetime
@@ -12,12 +13,8 @@ class MEXCBroker(MarketProcess):
             buyer: BuyerTPSL,
             api_key: str,
             api_secret: str,
-            test_mode: bool = False,
-            slippage_percent: float = 0.4,          # макс допустимое проскальзывание при входе (%)
-            maker_offset_percent: float = 0.08,     # смещение для maker-ордеров (вниз при buy, вверх при sell)
-            tp_maker_offset_percent: float = 0.05,  # небольшой offset для TP limit (выше take_profit для sell)
+            test_mode: bool = False
     ):
-        super().__init__()
         self.buyer = buyer
         self.symbol = f"{buyer.symbol1}{buyer.symbol2}"
         self.exchange = ccxt.mexc({
@@ -28,15 +25,9 @@ class MEXCBroker(MarketProcess):
         })
         if test_mode:
             self.exchange.set_sandbox_mode(True)
-
         self.active = False
         self.prev_in_position = False
         self.log_file = self.buyer.log_file
-
-        # Настраиваемые параметры
-        self.slippage_percent = slippage_percent
-        self.maker_offset_percent = maker_offset_percent
-        self.tp_maker_offset_percent = tp_maker_offset_percent
 
     def prepocess_realtime(self):
         self.active = True
@@ -50,10 +41,15 @@ class MEXCBroker(MarketProcess):
         except Exception as e:
             self._log(f"MEXCBroker: Ошибка соединения с MEXC: {str(e)}")
 
-    def run_realtime(self):
+    def run(self, start_time: datetime = None, current_time: datetime = None):
+        if not self.active:
+            return
+        if start_time is not None or current_time is not None:
+            return
         self._tick()
 
     def _tick(self):
+        # First, sync real balances to buyer
         try:
             balance = self.exchange.fetch_balance()
             usdt_amount = balance.get(self.buyer.symbol2, {}).get('free', 0.0)
@@ -61,100 +57,64 @@ class MEXCBroker(MarketProcess):
             self.buyer.sync_balances(usdt_amount, symbol1_amount)
             current_in_position = symbol1_amount > 0.000001
         except Exception as e:
-            self._log(f"MEXCBroker: Balance error: {str(e)}")
             return
 
-        # Реакция на сигнал BUY от стратегии
+        # React to changes in buyer's in_position (after its run)
         if self.buyer.in_position and not self.prev_in_position:
             if not current_in_position:
-                self._execute_limit_buy_with_tpsl()
+                self._execute_buy()
 
-        # Если стратегия вышла, но позиция ещё есть → fallback market sell
         if not self.buyer.in_position and self.prev_in_position:
             if current_in_position:
-                self._execute_market_sell_fallback()
+                self._execute_sell()
 
-        # Если биржа закрыла позицию (TP/SL сработали), но стратегия ещё думает что в позиции
+        # Handle discrepancies (though sync should handle most)
         if self.buyer.in_position and not current_in_position:
-            self.buyer.in_position = False
-            self._log("Позиция закрыта биржей (вероятно TP/SL) → синхронизировали состояние")
+            self.buyer.sync_balances(usdt_amount, symbol1_amount)  # Force sync again
 
-        # Отмена висячих ордеров, если нет позиции
-        if not current_in_position:
-            try:
-                self.exchange.cancel_all_orders(self.symbol)
-            except Exception:
-                pass
+        if not self.buyer.in_position and current_in_position:
+            self._execute_sell()
 
         self.prev_in_position = self.buyer.in_position
 
-    def _execute_limit_buy_with_tpsl(self):
-        """Limit buy (maker) + attached conditional TP/SL"""
-        requested_amount = self.buyer.regulator_tpsl.symbol1_prepared_converted_amount
-        if requested_amount <= 0:
-            self._log("Нулевое количество для покупки → пропуск")
+    def _execute_buy(self):
+        amount = self.buyer.regulator_tpsl.symbol1_prepared_converted_amount
+        if amount <= 0:
             return
-
         try:
-            ticker = self.exchange.fetch_ticker(self.symbol)
-            ask = ticker['ask'] or ticker['last']
-            current_price = ticker['last']
-
-            # Maker-friendly цена входа
-            entry_limit_price = ask * (1 - self.maker_offset_percent / 100)
-            entry_limit_price = self.exchange.price_to_precision(self.symbol, entry_limit_price)
-
-            amount = self.exchange.amount_to_precision(self.symbol, requested_amount)
-
-            tp = self.buyer.regulator_tpsl.take_profit
-            sl = self.buyer.regulator_tpsl.stop_loss
-
-            # TP limit price — чуть выше для повышения шанса maker-исполнения
-            tp_limit_price = tp * (1 + self.tp_maker_offset_percent / 100)
-            tp_limit_price = self.exchange.price_to_precision(self.symbol, tp_limit_price)
-
-            # Параметры для attached TP/SL (насколько ccxt/MEXC позволяет)
-            params = {
-                'takeProfitPrice': str(tp),                # trigger TP
-                'takeProfitLimitPrice': str(tp_limit_price),
-                'takeProfitType': 'LIMIT',
-                'stopLossPrice': str(sl),                  # trigger SL
-                'stopLossType': 'MARKET',
-                'triggerType': 'LAST_PRICE',
-                # Если MEXC требует других полей — добавь здесь
-            }
-
-            order = self.exchange.create_limit_buy_order(
-                symbol=self.symbol,
-                amount=amount,
-                price=entry_limit_price,
-                params=params
-            )
-
+            order = self.exchange.create_market_buy_order(self.symbol, amount)
+            filled_order = self.exchange.fetch_order(order['id'], self.symbol)
+            actual_amount = filled_order['filled']
+            actual_price = filled_order['average']
+            actual_fee = filled_order.get('fee', {}).get('cost', 0.0)
+            timestamp = datetime.fromtimestamp(filled_order['timestamp'] / 1000)
+            self.buyer.update_actual_open(actual_price, actual_amount, actual_fee, timestamp)
             self._log(
-                f"LIMIT BUY placed @ {entry_limit_price:.6f} "
-                f"(ask ~{ask:.2f}) | amount: {amount} | "
-                f"with TP@{tp_limit_price:.2f} / SL@{sl:.2f}"
-            )
-
+                f"MEXCBroker: BUY executed @ {actual_price:.2f} | amount: {actual_amount:.6f} | fee: {actual_fee:.2f}")
         except Exception as e:
-            self._log(f"Ошибка размещения BUY+TP/SL: {str(e)}")
+            self._log(f"MEXCBroker: BUY error: {str(e)}")
             self.buyer.in_position = False
 
-    def _execute_market_sell_fallback(self):
-        """Fallback: market sell если позиция осталась, но стратегия вышла"""
-        amount = self.buyer.symbol1_amount
-        if amount <= 0.000001:
+    def _execute_sell(self):
+        amount = self.buyer.symbol1_amount  # Use real amount from sync
+        if amount <= 0:
             return
-
         try:
-            amount_str = self.exchange.amount_to_precision(self.symbol, amount)
-            order = self.exchange.create_market_sell_order(self.symbol, amount_str)
-            filled = self.exchange.fetch_order(order['id'], self.symbol)
-            price = filled.get('average', 0)
-            self._log(f"Fallback MARKET SELL @ ~{price:.2f} | amount: {amount_str}")
+            order = self.exchange.create_market_sell_order(self.symbol, amount)
+            filled_order = self.exchange.fetch_order(order['id'], self.symbol)
+            actual_amount = filled_order['filled']
+            actual_price = filled_order['average']
+            actual_fee = filled_order.get('fee', {}).get('cost', 0.0)
+            timestamp = datetime.fromtimestamp(filled_order['timestamp'] / 1000)
+            # Determine reason based on price
+            last_price = self.buyer.history_market_parser.df.iloc[-1][
+                'close'] if self.buyer.history_market_parser.df is not None else actual_price
+            reason = "TP" if last_price >= self.buyer.regulator_tpsl.take_profit else "SL" if last_price <= self.buyer.regulator_tpsl.stop_loss else "UNKNOWN"
+            self.buyer.update_actual_close(actual_price, actual_amount, actual_fee, reason, timestamp)
+            self._log(
+                f"MEXCBroker: SELL executed @ {actual_price:.2f} | amount: {actual_amount:.6f} | fee: {actual_fee:.2f}")
         except Exception as e:
-            self._log(f"Fallback SELL error: {str(e)}")
+            self._log(f"MEXCBroker: SELL error: {str(e)}")
 
     def _log(self, message: str):
         entry = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}\n"
@@ -169,8 +129,6 @@ class MEXCBroker(MarketProcess):
             balance = self.exchange.fetch_balance()
             symbol1_amount = balance.get(self.buyer.symbol1, {}).get('free', 0.0)
             if symbol1_amount > 0.000001:
-                self._execute_market_sell_fallback()
-            self.exchange.cancel_all_orders(self.symbol)
-            self._log("Finalize: позиция закрыта (если была), ордера отменены.")
+                self._execute_sell()
         except Exception as e:
-            self._log(f"Finalize error: {str(e)}")
+            self._log(f"MEXCBroker: Finalize error: {str(e)}")
