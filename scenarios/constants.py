@@ -4,10 +4,10 @@ from scenarios.masters.instances.kama_simple import KamaSimple
 from scenarios.masters.instances.obflow_master import ObFlowMaster
 
 realtime = False
-start_time_string='2025/06/01 00:00'
-end_time_string='2025/06/30 00:00'
+start_time_string='2025/09/01 00:00'
+end_time_string='2025/10/30 00:00'
 is_printed_ticks = False
-balance_usdt = BalanceUSDT(7712)
+balance_usdt = BalanceUSDT(10282)
 
 
 
