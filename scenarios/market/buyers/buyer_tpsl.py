@@ -113,27 +113,9 @@ class BuyerTPSL(MarketProcess):
             self._signal_close_position(sl, timestamp, "SL")
             return
 
-        if self.is_take_profit_for_close:
-            condition = (current_price >= tp)
-            bought_price = current_price
-        else:
-            condition = (last_row['high'] >= tp)
-            bought_price = tp
-
-        if condition:
-            if self.realtime:
-                if self.is_realtime_triggered == 1:
-                    self.saved_timestamp = self.current_timestamp
-
-                self.is_realtime_triggered = 2
-
-                if self.saved_timestamp != self.current_timestamp and self.is_realtime_triggered == 2:
-                    self.is_realtime_triggered = 3
-
-                if self.is_realtime_triggered > 2:
-                    self._signal_close_position(bought_price, timestamp, "TP")
-            else:
-                self._signal_close_position(bought_price, timestamp, "TP")
+        if last_row['high'] >= tp:
+            self._signal_close_position(tp, timestamp, "SL")
+            return
 
     def _signal_close_position(self, price: float, timestamp: datetime, reason: str):
         amount = self.symbol1_amount  # Use current holding

@@ -3,11 +3,11 @@ from scenarios.masters.instances.choch_nofee_master import CHoCHNoFeeMaster
 from scenarios.masters.instances.kama_simple import KamaSimple
 from scenarios.masters.instances.obflow_master import ObFlowMaster
 
-realtime = False
+realtime = True
 start_time_string='2025/09/01 00:00'
-end_time_string='2025/10/30 00:00'
+end_time_string='2025/09/10 00:00'
 is_printed_ticks = False
-balance_usdt = BalanceUSDT(10282)
+balance_usdt = BalanceUSDT(57)
 
 
 
