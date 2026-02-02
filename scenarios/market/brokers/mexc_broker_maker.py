@@ -6,7 +6,7 @@ from scenarios.market.buyers.buyer_tpsl import BuyerTPSL
 from utils.core.functions import MarketProcess
 
 
-class MEXCBrokerMakerSimple(MarketProcess):
+class MEXCBrokerMaker(MarketProcess):
     def __init__(
             self,
             buyer: BuyerTPSL,
