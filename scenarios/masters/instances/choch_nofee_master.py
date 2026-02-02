@@ -1,4 +1,5 @@
-from scenarios.market.brokers.mexc_broker import MEXCBroker
+from scenarios.market.brokers.mexc_broker_maker import MEXCBrokerMaker
+from scenarios.market.brokers.mexc_broker_taker import MEXCBrokerTaker
 from scenarios.market.buyers.buyer_tpsl import BuyerTPSL
 from scenarios.market.regulators.regulator_nweatr import RegulatorNWEATR
 from scenarios.masters.abstracts.market_master import MarketMaster
@@ -53,7 +54,7 @@ class CHoCHNoFeeMaster(MarketMaster):
             is_take_profit_for_close=False
         )
 
-        broker = MEXCBroker(buyer, api_key=mexc_api.API_KEY, api_secret=mexc_api.API_SECRET)
+        broker = MEXCBrokerMaker(buyer, api_key=mexc_api.API_KEY, api_secret=mexc_api.API_SECRET)
 
         self.market_processes = [
             history_market_parser_1m,

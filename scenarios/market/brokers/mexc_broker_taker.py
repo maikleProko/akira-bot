@@ -1,5 +1,5 @@
 
-# MEXCBroker.py
+# MEXCBrokerTaker.py
 import ccxt
 from datetime import datetime
 
@@ -7,7 +7,7 @@ from scenarios.market.buyers.buyer_tpsl import BuyerTPSL
 from utils.core.functions import MarketProcess
 
 
-class MEXCBroker(MarketProcess):
+class MEXCBrokerTaker(MarketProcess):
     def __init__(
             self,
             buyer: BuyerTPSL,
@@ -37,9 +37,9 @@ class MEXCBroker(MarketProcess):
             return
         try:
             self.exchange.fetch_balance()
-            self._log("MEXCBroker: Соединение с MEXC установлено успешно.")
+            self._log("MEXCBrokerTaker: Соединение с MEXC установлено успешно.")
         except Exception as e:
-            self._log(f"MEXCBroker: Ошибка соединения с MEXC: {str(e)}")
+            self._log(f"MEXCBrokerTaker: Ошибка соединения с MEXC: {str(e)}")
 
     def run(self, start_time: datetime = None, current_time: datetime = None):
         if not self.active:
@@ -90,9 +90,9 @@ class MEXCBroker(MarketProcess):
             timestamp = datetime.fromtimestamp(filled_order['timestamp'] / 1000)
             self.buyer.update_actual_open(actual_price, actual_amount, actual_fee, timestamp)
             self._log(
-                f"MEXCBroker: BUY executed @ {actual_price:.2f} | amount: {actual_amount:.6f} | fee: {actual_fee:.2f}")
+                f"MEXCBrokerTaker: BUY executed @ {actual_price:.2f} | amount: {actual_amount:.6f} | fee: {actual_fee:.2f}")
         except Exception as e:
-            self._log(f"MEXCBroker: BUY error: {str(e)}")
+            self._log(f"MEXCBrokerTaker: BUY error: {str(e)}")
             self.buyer.in_position = False
 
     def _execute_sell(self):
@@ -112,9 +112,9 @@ class MEXCBroker(MarketProcess):
             reason = "TP" if last_price >= self.buyer.regulator_tpsl.take_profit else "SL" if last_price <= self.buyer.regulator_tpsl.stop_loss else "UNKNOWN"
             self.buyer.update_actual_close(actual_price, actual_amount, actual_fee, reason, timestamp)
             self._log(
-                f"MEXCBroker: SELL executed @ {actual_price:.2f} | amount: {actual_amount:.6f} | fee: {actual_fee:.2f}")
+                f"MEXCBrokerTaker: SELL executed @ {actual_price:.2f} | amount: {actual_amount:.6f} | fee: {actual_fee:.2f}")
         except Exception as e:
-            self._log(f"MEXCBroker: SELL error: {str(e)}")
+            self._log(f"MEXCBrokerTaker: SELL error: {str(e)}")
 
     def _log(self, message: str):
         entry = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}\n"
@@ -131,4 +131,4 @@ class MEXCBroker(MarketProcess):
             if symbol1_amount > 0.000001:
                 self._execute_sell()
         except Exception as e:
-            self._log(f"MEXCBroker: Finalize error: {str(e)}")
+            self._log(f"MEXCBrokerTaker: Finalize error: {str(e)}")
