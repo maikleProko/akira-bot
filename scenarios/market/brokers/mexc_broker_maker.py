@@ -47,8 +47,6 @@ class MEXCBrokerMaker(MarketProcess):
     def run(self, start_time: datetime = None, current_time: datetime = None):
         if not self.active:
             return
-        if start_time is not None or current_time is not None:
-            return
         self._tick()
 
     def _tick(self):
@@ -57,7 +55,9 @@ class MEXCBrokerMaker(MarketProcess):
         self._check_orders()
 
         if self.buyer.in_position and not self.prev_in_position:
-            if not current_in_position and not self.current_buy_order_id:
+            print('ENTRY')
+            if not self.current_buy_order_id:
+                print('ENTRY2')
                 self._place_buy_limit()
 
         if not self.buyer.in_position and self.prev_in_position:
