@@ -8,37 +8,29 @@ from scenarios.parsers.indicators.instances.kama_indicator import KamaIndicator
 from scenarios.parsers.indicators.instances.nwe_bounds_indicator import NweBoundsIndicator
 from scenarios.strategies.instances.choch_percent_strategy import CHoCHPercentStrategy
 from scenarios.strategies.instances.kama_strategy import KamaStrategy
+from scenarios.strategies.instances.kama_yung_strategy import KamaYungStrategy
 
 
-class KamaMaster(MarketMaster):
+class KamaYungMaster(MarketMaster):
     def __init__(self, symbol1, symbol2, balance_usdt, mode='generating'):
         super().__init__()
 
         # PROCESSES (PARSERS)
         history_market_parser_1m = HistoryBinanceParser(symbol1, symbol2, 1, 1000, mode)
-        history_market_parser_3m = HistoryBinanceParser(symbol1, symbol2, 3, 1000, mode)
-        history_market_parser_5m = HistoryBinanceParser(symbol1, symbol2, 5, 1000, mode)
         history_market_parser_15m = HistoryBinanceParser(symbol1, symbol2, 15, 1000, mode)
-        history_market_parser_60m = HistoryBinanceParser(symbol1, symbol2, 60, 1000, mode)
         history_market_parser_120m = HistoryBinanceParser(symbol1, symbol2, 120, 1000, mode)
         nwe_bounds_indicator = NweBoundsIndicator(history_market_parser_1m)
         atr_bounds_indicator = AtrBoundsIndicator(history_market_parser_1m)
         kama_indicator_120m = KamaIndicator(history_market_parser_120m, 7, 2, 30)
-        kama_indicator_60m = KamaIndicator(history_market_parser_60m, 7, 2, 30)
         kama_indicator_15m = KamaIndicator(history_market_parser_15m, 7, 2, 30)
-        kama_indicator_5m = KamaIndicator(history_market_parser_5m, 7, 2, 30)
-        kama_indicator_3m = KamaIndicator(history_market_parser_3m, 7, 2, 30)
         kama_indicator_1m = KamaIndicator(history_market_parser_1m, 7, 2, 30)
 
         # PROCESSES (STRATEGIES)
-        strategy = KamaStrategy(
+        strategy = KamaYungStrategy(
             history_market_parser_1m=history_market_parser_1m,
             history_market_parser_15m=history_market_parser_15m,
             kama_indicator_120m=kama_indicator_120m,
-            kama_indicator_60m=kama_indicator_60m,
             kama_indicator_15m=kama_indicator_15m,
-            kama_indicator_5m=kama_indicator_5m,
-            kama_indicator_3m=kama_indicator_3m,
             kama_indicator_1m=kama_indicator_1m,
             nwe_bounds_indicator = nwe_bounds_indicator
         )
@@ -49,8 +41,9 @@ class KamaMaster(MarketMaster):
             nwe_bounds_indicator=nwe_bounds_indicator,
             atr_bounds_indicator=atr_bounds_indicator,
             strategy=strategy,
-            risk_usdt=15,
-            min_profit_usdt=23
+            risk_usdt=30,
+            min_profit_usdt=50,
+            fee_rate=0
         )
 
         buyer = BuyerTPSL(
@@ -58,21 +51,16 @@ class KamaMaster(MarketMaster):
             symbol2=symbol2,
             history_market_parser=history_market_parser_1m,
             regulator_tpsl=regulator,
-            balance_usdt=balance_usdt
+            balance_usdt=balance_usdt,
+            fee=0
         )
 
         self.market_processes = [
             history_market_parser_1m,
-            history_market_parser_3m,
-            history_market_parser_5m,
             history_market_parser_15m,
-            history_market_parser_60m,
             history_market_parser_120m,
             kama_indicator_120m,
-            kama_indicator_60m,
             kama_indicator_15m,
-            kama_indicator_5m,
-            kama_indicator_3m,
             kama_indicator_1m,
             atr_bounds_indicator,
             nwe_bounds_indicator,
