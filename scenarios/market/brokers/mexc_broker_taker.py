@@ -84,16 +84,23 @@ class MEXCBrokerTaker(MarketProcess):
         try:
             order = self.exchange.create_market_buy_order(self.symbol, amount)
             filled_order = self.exchange.fetch_order(order['id'], self.symbol)
-            actual_amount = filled_order['filled']
+            try:
+                actual_amount = filled_order['filled']
+            except:
+                actual_amount = amount
+
             actual_price = filled_order['average']
-            actual_fee = filled_order.get('fee', {}).get('cost', 0.0)
+
+            try:
+                actual_fee = filled_order.get('fee', {}).get('cost', 0.0)
+            except:
+                actual_fee = 0
             timestamp = datetime.fromtimestamp(filled_order['timestamp'] / 1000)
             self.buyer.update_actual_open(actual_price, actual_amount, actual_fee, timestamp)
             self._log(
                 f"MEXCBrokerTaker: BUY executed @ {actual_price:.2f} | amount: {actual_amount:.6f} | fee: {actual_fee:.2f}")
         except Exception as e:
             self._log(f"MEXCBrokerTaker: BUY error: {str(e)}")
-            self.buyer.in_position = False
 
     def _execute_sell(self):
         amount = self.buyer.symbol1_amount  # Use real amount from sync
@@ -102,9 +109,17 @@ class MEXCBrokerTaker(MarketProcess):
         try:
             order = self.exchange.create_market_sell_order(self.symbol, amount)
             filled_order = self.exchange.fetch_order(order['id'], self.symbol)
-            actual_amount = filled_order['filled']
+            try:
+                actual_amount = filled_order['filled']
+            except:
+                actual_amount = amount
+
             actual_price = filled_order['average']
-            actual_fee = filled_order.get('fee', {}).get('cost', 0.0)
+
+            try:
+                actual_fee = filled_order.get('fee', {}).get('cost', 0.0)
+            except:
+                actual_fee = 0
             timestamp = datetime.fromtimestamp(filled_order['timestamp'] / 1000)
             # Determine reason based on price
             last_price = self.buyer.history_market_parser.df.iloc[-1][

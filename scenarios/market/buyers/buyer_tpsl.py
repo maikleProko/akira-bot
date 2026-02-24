@@ -73,7 +73,7 @@ class BuyerTPSL(MarketProcess):
         current_price = last_row['close']
         self.current_timestamp = pd.to_datetime(last_row['time'])
         if not self.in_position:
-            if self.regulator_tpsl.is_accepted_by_regulator:
+            if self.regulator_tpsl.is_accepted_by_regulator and self.current_timestamp.second == 0:
                 self._signal_open_position(current_price, self.current_timestamp)
         else:
             self._check_exit_conditions(last_row, current_price, self.current_timestamp)

@@ -1,4 +1,5 @@
 from scenarios.market.brokers.mexc_broker_maker import MEXCBrokerMaker
+from scenarios.market.brokers.mexc_broker_taker import MEXCBrokerTaker
 from scenarios.market.buyers.buyer_tpsl import BuyerTPSL
 from scenarios.market.regulators.regulator_nweatr import RegulatorNWEATR
 from scenarios.masters.abstracts.market_master import MarketMaster
@@ -16,11 +17,8 @@ class NoFeeMaster(MarketMaster):
 
         # PROCESSES (PARSERS)
         history_market_parser_1m = HistoryBinanceParser(symbol1, symbol2, 1, 1000, mode)
-        history_market_parser_15m = HistoryBinanceParser(symbol1, symbol2, 15, 1000, mode)
-        history_market_parser_context = HistoryBinanceParser(symbol1, symbol2, 120, 1000, mode)
         nwe_bounds_indicator = NweBoundsIndicator(history_market_parser_1m)
         atr_bounds_indicator = AtrBoundsIndicator(history_market_parser_1m)
-        kama_indicator_context = KamaIndicator(history_market_parser_context, 7, 2, 30)
 
         # PROCESSES (STRATEGIES)
         strategy = Strategy()
@@ -46,13 +44,10 @@ class NoFeeMaster(MarketMaster):
             is_take_profit_for_close=False
         )
 
-        broker = MEXCBrokerMaker(buyer, api_key=mexc_api.API_KEY, api_secret=mexc_api.API_SECRET)
+        broker = MEXCBrokerTaker(buyer, api_key=mexc_api.API_KEY, api_secret=mexc_api.API_SECRET)
 
         self.market_processes = [
             history_market_parser_1m,
-            history_market_parser_15m,
-            history_market_parser_context,
-            kama_indicator_context,
             atr_bounds_indicator,
             nwe_bounds_indicator,
             strategy,
