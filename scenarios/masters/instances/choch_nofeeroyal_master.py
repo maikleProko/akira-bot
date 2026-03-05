@@ -78,5 +78,5 @@ class CHoCHNoFeeRoyalMaster(MarketMaster):
             strategy,
             regulator,
             buyer,
-            #broker
+            broker
         ]
