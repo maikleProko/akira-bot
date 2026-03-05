@@ -4,11 +4,11 @@ from scenarios.masters.instances.choch_nofeeroyal_master import CHoCHNoFeeRoyalM
 from scenarios.masters.instances.kama_yung_master import KamaYungMaster
 from scenarios.masters.instances.nofee_master import NoFeeMaster
 
-realtime = True
+realtime = False
 start_time_string='2025/06/01 00:00'
 end_time_string='2025/07/30 00:00'
 is_printed_ticks = False
-balance_usdt = BalanceUSDT(61)
+balance_usdt = BalanceUSDT(7712)
 
 
 

@@ -47,8 +47,8 @@ class CHoCHNoFeeRoyalMaster(MarketMaster):
             atr_bounds_indicator=atr_bounds_indicator,
             strategy=strategy,
             fee_rate=0,
-            risk_usdt=0.24,
-            min_profit_usdt=0.4
+            risk_usdt=30,
+            min_profit_usdt=50
         )
 
         buyer = BuyerTPSL(
@@ -78,5 +78,5 @@ class CHoCHNoFeeRoyalMaster(MarketMaster):
             strategy,
             regulator,
             buyer,
-            broker
+            #broker
         ]
