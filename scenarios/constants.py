@@ -5,8 +5,8 @@ from scenarios.masters.instances.kama_yung_master import KamaYungMaster
 from scenarios.masters.instances.nofee_master import NoFeeMaster
 
 realtime = False
-start_time_string='2025/06/01 00:00'
-end_time_string='2025/07/30 00:00'
+start_time_string='2025/07/29 00:00'
+end_time_string='2026/01/01 00:00'
 is_printed_ticks = False
 balance_usdt = BalanceUSDT(7712)
 
