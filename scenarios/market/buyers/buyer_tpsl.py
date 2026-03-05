@@ -114,7 +114,7 @@ class BuyerTPSL(MarketProcess):
             return
 
         if last_row['high'] >= tp:
-            self._signal_close_position(tp, timestamp, "SL")
+            self._signal_close_position(tp, timestamp, "TP")
             return
 
     def _signal_close_position(self, price: float, timestamp: datetime, reason: str):
