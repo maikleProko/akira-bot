@@ -12,6 +12,9 @@ class MarketMaster(MarketProcess):
     def prepare(self, start_time=None, end_time=None):
         for market_process in self.market_processes:
             market_process.prepare(start_time, end_time)
+
+    def prepocess_realtime(self):
+        for market_process in self.market_processes:
             market_process.prepocess_realtime()
 
     def run(self, start_time=None, end_time=None):

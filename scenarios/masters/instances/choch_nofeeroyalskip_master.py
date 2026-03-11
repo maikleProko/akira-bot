@@ -1,5 +1,5 @@
 from scenarios.market.brokers.mexc_broker_taker import MEXCBrokerTaker
-from scenarios.market.buyers.buyer_tpsl import BuyerTPSL
+from scenarios.market.buyers.buyer_tpsl_kama_exit import BuyerTPSLKamaExit
 from scenarios.market.regulators.regulator_nweatr import RegulatorNWEATR
 from scenarios.masters.abstracts.market_master import MarketMaster
 from scenarios.parsers.history_market_parser.instances.history_binance_parser import HistoryBinanceParser
@@ -8,11 +8,11 @@ from scenarios.parsers.indicators.instances.bos_indicator import BosIndicator
 from scenarios.parsers.indicators.instances.choch_indicator import CHoCHIndicator
 from scenarios.parsers.indicators.instances.kama_indicator import KamaIndicator
 from scenarios.parsers.indicators.instances.nwe_bounds_indicator import NweBoundsIndicator
+from scenarios.strategies.instances.choch_nofeeroyalskip_strategy import CHoCHNoFeeRoyalSkipStrategy
 import mexc_api
-from scenarios.strategies.instances.choch_nofeeroyal_strategy import CHoCHNoFeeRoyalStrategy
 
 
-class CHoCHNoFeeRoyalMaster(MarketMaster):
+class CHoCHNoFeeRoyalSkipMaster(MarketMaster):
     def __init__(self, symbol1, symbol2, balance_usdt, mode='generating'):
         super().__init__()
 
@@ -30,9 +30,8 @@ class CHoCHNoFeeRoyalMaster(MarketMaster):
         bos_indicator_2h = BosIndicator(history_market_parser_240m)
 
         # PROCESSES (STRATEGIES)
-        strategy = CHoCHNoFeeRoyalStrategy(
+        strategy = CHoCHNoFeeRoyalSkipStrategy(
             history_market_parser_1m=history_market_parser_1m,
-            kama_indicator_30m=kama_indicator_30m,
             kama_indicator_240m=kama_indicator_240m,
             choch_indicator_15m=choch_indicator_15m,
             choch_indicator_2h=choch_indicator_2h,
@@ -47,15 +46,16 @@ class CHoCHNoFeeRoyalMaster(MarketMaster):
             atr_bounds_indicator=atr_bounds_indicator,
             strategy=strategy,
             fee_rate=0,
-            risk_usdt=30,
-            min_profit_usdt=50
+            risk_usdt=0.3,
+            min_profit_usdt=0.5
         )
 
-        buyer = BuyerTPSL(
+        buyer = BuyerTPSLKamaExit(
             symbol1=symbol1,
             symbol2=symbol2,
             history_market_parser=history_market_parser_1m,
             regulator_tpsl=regulator,
+            kama_indicator_30m=kama_indicator_30m,
             balance_usdt=balance_usdt,
             fee=0,
             is_take_profit_for_close=False
