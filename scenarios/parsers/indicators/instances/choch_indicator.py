@@ -25,7 +25,8 @@ class CHoCHIndicator(Indicator):
         self.swing_size = 5
 
         # Результат на "текущий" момент (последняя свеча)
-        self.is_now_CHoCH = False          # Был ли bullish CHoCH на последней свече
+        self.is_now_CHoCH = False   # Был ли bullish CHoCH на последней свече
+        self.is_prev_CHoCH = False  # Был ли bullish CHoCH на предпоследней свече
         self.choch_cross_price = None      # Уровень, который пробили при CHoCH
 
         # Хранилища для исторического режима: значения по каждой строке df
@@ -195,6 +196,7 @@ class CHoCHIndicator(Indicator):
         """
         if (self._historical_is_choch is None or self._historical_is_choch.empty):
             self.is_now_CHoCH = False
+            self.is_prev_CHoCH = False
             self.choch_cross_price = None
             return
 
@@ -203,14 +205,21 @@ class CHoCHIndicator(Indicator):
 
         if not mask.any():
             self.is_now_CHoCH = False
+            self.is_prev_CHoCH = False
             self.choch_cross_price = None
             return
 
-        last_idx = time_col[mask].index[-1]
+        valid_indices = time_col[mask].index
+        last_idx = valid_indices[-1]
 
         self.is_now_CHoCH = bool(self._historical_is_choch.loc[last_idx])
         self.choch_cross_price = float(self._historical_cross_price.loc[last_idx]) \
             if not np.isnan(self._historical_cross_price.loc[last_idx]) else None
+        if len(valid_indices) >= 2:
+            prev_idx = valid_indices[-2]
+            self.is_prev_CHoCH = bool(self._historical_is_choch.loc[prev_idx])
+        else:
+            self.is_prev_CHoCH = False
 
     def run_realtime(self):
         """
@@ -220,13 +229,18 @@ class CHoCHIndicator(Indicator):
 
         if df is None or df.empty or 'close' not in df.columns:
             self.is_now_CHoCH = False
+            self.is_prev_CHoCH = False
             self.choch_cross_price = None
             return
 
         is_choch_series, cross_price_series, _ = self._compute_full_history(df)
 
-        # Берём значения с последней строки
         last_idx = df.index[-1]
         self.is_now_CHoCH = bool(is_choch_series.loc[last_idx])
         self.choch_cross_price = float(cross_price_series.loc[last_idx]) \
             if not np.isnan(cross_price_series.loc[last_idx]) else None
+        if len(df) >= 2:
+            prev_idx = df.index[-2]
+            self.is_prev_CHoCH = bool(is_choch_series.loc[prev_idx])
+        else:
+            self.is_prev_CHoCH = False

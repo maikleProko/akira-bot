@@ -90,7 +90,7 @@ class BuyerTPSLKamaExit(BuyerTPSL):
             self._signal_close_position(tp, timestamp, "TP")
             return
 
-        if self.kama_indicator_30m.trend == "BEARISH":
+        if self.kama_indicator_30m.trend == "BEARISH" and self.current_timestamp.second == 0:
             self._signal_close_position(current_price, timestamp, "KAMA_EXIT")
             return
 

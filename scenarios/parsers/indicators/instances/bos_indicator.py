@@ -20,7 +20,8 @@ class BosIndicator(Indicator):
         super().__init__(history_market_parser)
         self.swing_size = 5
         # Результат на "текущий" момент (последняя свеча)
-        self.is_now_BOS = False # Был ли bullish BOS на последней свече
+        self.is_now_BOS = False   # Был ли bullish BOS на последней свече
+        self.is_prev_BOS = False  # Был ли bullish BOS на предпоследней свече
         self.bos_cross_price = None # Уровень, который пробили при BOS
         # Хранилища для исторического режима: значения по каждой строке df
         self._historical_is_bos = None # pd.Series[bool] — был ли BOS на этой свече
@@ -158,18 +159,26 @@ class BosIndicator(Indicator):
         """
         if (self._historical_is_bos is None or self._historical_is_bos.empty):
             self.is_now_BOS = False
+            self.is_prev_BOS = False
             self.bos_cross_price = None
             return
         time_col = pd.to_datetime(self.history_market_parser.history_df['time'])
         mask = time_col <= current_time
         if not mask.any():
             self.is_now_BOS = False
+            self.is_prev_BOS = False
             self.bos_cross_price = None
             return
-        last_idx = time_col[mask].index[-1]
+        valid_indices = time_col[mask].index
+        last_idx = valid_indices[-1]
         self.is_now_BOS = bool(self._historical_is_bos.loc[last_idx])
         self.bos_cross_price = float(self._historical_cross_price.loc[last_idx]) \
             if not np.isnan(self._historical_cross_price.loc[last_idx]) else None
+        if len(valid_indices) >= 2:
+            prev_idx = valid_indices[-2]
+            self.is_prev_BOS = bool(self._historical_is_bos.loc[prev_idx])
+        else:
+            self.is_prev_BOS = False
 
     def run_realtime(self):
         """
@@ -178,11 +187,16 @@ class BosIndicator(Indicator):
         df = self.history_market_parser.df
         if df is None or df.empty or 'close' not in df.columns:
             self.is_now_BOS = False
+            self.is_prev_BOS = False
             self.bos_cross_price = None
             return
         is_bos_series, cross_price_series, _ = self._compute_full_history(df)
-        # Берём значения с последней строки
         last_idx = df.index[-1]
         self.is_now_BOS = bool(is_bos_series.loc[last_idx])
         self.bos_cross_price = float(cross_price_series.loc[last_idx]) \
             if not np.isnan(cross_price_series.loc[last_idx]) else None
+        if len(df) >= 2:
+            prev_idx = df.index[-2]
+            self.is_prev_BOS = bool(is_bos_series.loc[prev_idx])
+        else:
+            self.is_prev_BOS = False

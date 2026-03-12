@@ -45,8 +45,8 @@ class CHoCHKimmiMaster(MarketMaster):
             atr_bounds_indicator=atr_bounds_indicator,
             strategy=strategy,
             fee_rate=0,
-            risk_usdt=0.3,
-            min_profit_usdt=0.5
+            risk_usdt=0.12,
+            min_profit_usdt=0.2
         )
 
         buyer = BuyerTPSLKamaExit(

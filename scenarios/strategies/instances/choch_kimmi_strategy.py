@@ -24,9 +24,15 @@ class CHoCHKimmiStrategy(Strategy):
     def _check_signal(self):
         kama_15m_bullish = self.kama_indicator_15m.trend == "BULLISH"
         kama_120m_bullish = self.kama_indicator_120m.trend == "BULLISH"
-        has_choch = self.choch_indicator_1m.is_now_CHoCH
-        has_bos = self.bos_indicator_1m.is_now_BOS
-        self.is_accepted_by_strategy = kama_15m_bullish and kama_120m_bullish and (has_choch or has_bos)
+        has_now_choch = self.choch_indicator_1m.is_now_CHoCH
+        has_now_bos = self.bos_indicator_1m.is_now_BOS
+        has_prev_choch = self.choch_indicator_1m.is_prev_CHoCH
+        has_prev_bos = self.bos_indicator_1m.is_prev_BOS
+        self.is_accepted_by_strategy = (
+            kama_15m_bullish and kama_120m_bullish
+            and (has_now_choch or has_now_bos or has_prev_choch or has_prev_bos)
+        )
+
 
     def run_historical(self, start_time, current_time):
         self._check_signal()
