@@ -78,5 +78,5 @@ class CHoCHNoFeeRoyalSkipMaster(MarketMaster):
             strategy,
             regulator,
             buyer,
-            #broker
+            broker
         ]

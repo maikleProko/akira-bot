@@ -1,49 +1,18 @@
 from datetime import datetime
 import pandas as pd
-import os
-
 from scenarios.market.buyers.balance_usdt import BalanceUSDT
+from scenarios.market.buyers.buyer_tpsl import BuyerTPSL
 from scenarios.market.regulators.regulator_tpsl import RegulatorTPSL
 from scenarios.parsers.history_market_parser.abstracts.history_market_parser import HistoryMarketParser
 from scenarios.parsers.indicators.instances.kama_indicator import KamaIndicator
-from utils.core.functions import MarketProcess
 
-
-class BuyerTPSLKamaExit(MarketProcess):
-    def __init__(
-            self,
-            history_market_parser: HistoryMarketParser,
-            regulator_tpsl: RegulatorTPSL,
-            kama_indicator_30m: KamaIndicator,
-            symbol1='BTC',
-            symbol2='USDT',
-            symbol1_amount: float = 0.0,
-            balance_usdt: BalanceUSDT = None,
-            fee: float = 0.001,
-            is_take_profit_for_close=False
-    ):
-        self.history_market_parser = history_market_parser
-        self.regulator_tpsl = regulator_tpsl
+class BuyerTPSLKamaExit(BuyerTPSL):
+    def __init__(self, history_market_parser: HistoryMarketParser, regulator_tpsl: RegulatorTPSL,
+                 kama_indicator_30m: KamaIndicator, symbol1='BTC', symbol2='USDT', symbol1_amount: float = 0.0,
+                 balance_usdt: BalanceUSDT = None, fee: float = 0.001, is_take_profit_for_close=False):
+        super().__init__(history_market_parser, regulator_tpsl, symbol1, symbol2, symbol1_amount, balance_usdt, fee,
+                         is_take_profit_for_close)
         self.kama_indicator_30m = kama_indicator_30m
-        self.in_position = False
-        self.entry_price = None
-        self.entry_time = None
-        self.symbol1 = symbol1
-        self.symbol2 = symbol2
-        self.symbol1_amount = symbol1_amount
-        self.balance_usdt = balance_usdt
-        self.fee = fee
-        self.trades = []
-        self.current_timestamp = ""
-        self.saved_timestamp = ""
-        self.is_realtime_triggered = 0
-        self.realtime = False
-        self.is_take_profit_for_close = is_take_profit_for_close
-        log_date = datetime.now().strftime("%Y%m%d")
-        log_dir = "files/decisions"
-        os.makedirs(log_dir, exist_ok=True)
-        self.log_file = os.path.join(log_dir, f"decisions_{log_date}.txt")
-        self._log(f"\n=== НОВАЯ СЕССИЯ | {symbol1}/{symbol2} | Баланс: {balance_usdt.amount:.2f} USDT ===\n")
 
     def prepocess_realtime(self):
         self.realtime = True
