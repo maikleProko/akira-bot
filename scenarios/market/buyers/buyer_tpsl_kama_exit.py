@@ -8,11 +8,11 @@ from scenarios.parsers.indicators.instances.kama_indicator import KamaIndicator
 
 class BuyerTPSLKamaExit(BuyerTPSL):
     def __init__(self, history_market_parser: HistoryMarketParser, regulator_tpsl: RegulatorTPSL,
-                 kama_indicator_30m: KamaIndicator, symbol1='BTC', symbol2='USDT', symbol1_amount: float = 0.0,
+                 kama_indicator_exit: KamaIndicator, symbol1='BTC', symbol2='USDT', symbol1_amount: float = 0.0,
                  balance_usdt: BalanceUSDT = None, fee: float = 0.001, is_take_profit_for_close=False):
         super().__init__(history_market_parser, regulator_tpsl, symbol1, symbol2, symbol1_amount, balance_usdt, fee,
                          is_take_profit_for_close)
-        self.kama_indicator_30m = kama_indicator_30m
+        self.kama_indicator_exit = kama_indicator_exit
 
     def prepocess_realtime(self):
         self.realtime = True
@@ -90,7 +90,7 @@ class BuyerTPSLKamaExit(BuyerTPSL):
             self._signal_close_position(tp, timestamp, "TP")
             return
 
-        if self.kama_indicator_30m.trend == "BEARISH" and self.current_timestamp.second == 0:
+        if self.kama_indicator_exit.trend == "BEARISH" and self.current_timestamp.second == 0:
             self._signal_close_position(current_price, timestamp, "KAMA_EXIT")
             return
 

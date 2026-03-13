@@ -13,7 +13,8 @@ import mexc_api
 
 
 class CHoCHNoFeeRoyalSkipMaster(MarketMaster):
-    def __init__(self, symbol1, symbol2, balance_usdt, mode='generating'):
+    def __init__(self, symbol1, symbol2, balance_usdt, mode='generating',
+                 fee=0, risk_usdt=30, min_profit_usdt=50, is_used_broker=False):
         super().__init__()
 
         # PROCESSES (PARSERS)
@@ -45,9 +46,9 @@ class CHoCHNoFeeRoyalSkipMaster(MarketMaster):
             nwe_bounds_indicator=nwe_bounds_indicator,
             atr_bounds_indicator=atr_bounds_indicator,
             strategy=strategy,
-            fee_rate=0,
-            risk_usdt=0.3,
-            min_profit_usdt=0.5
+            fee_rate=fee,
+            risk_usdt=risk_usdt,
+            min_profit_usdt=min_profit_usdt
         )
 
         buyer = BuyerTPSLKamaExit(
@@ -55,9 +56,9 @@ class CHoCHNoFeeRoyalSkipMaster(MarketMaster):
             symbol2=symbol2,
             history_market_parser=history_market_parser_1m,
             regulator_tpsl=regulator,
-            kama_indicator_30m=kama_indicator_30m,
+            kama_indicator_exit=kama_indicator_30m,
             balance_usdt=balance_usdt,
-            fee=0,
+            fee=fee,
             is_take_profit_for_close=False
         )
 
@@ -78,5 +79,5 @@ class CHoCHNoFeeRoyalSkipMaster(MarketMaster):
             strategy,
             regulator,
             buyer,
-            broker
+            *([ broker ] if is_used_broker else [])
         ]
